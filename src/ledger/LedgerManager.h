@@ -96,20 +96,9 @@ class LedgerManager
     // Return the sequence number of the LCL.
     virtual uint32_t getLastClosedLedgerNum() const = 0;
 
-    // Return the minimum balance required to establish, in the current ledger,
-    // a new ledger entry with `ownerCount` owned objects.  Derived from the
-    // current ledger's `baseReserve` value.
-    virtual int64_t getMinBalance(uint32_t ownerCount) const = 0;
-
     // Return the close time of the current ledger, in seconds since the POSIX
     // epoch.
     virtual uint64_t getCloseTime() const = 0;
-
-    // Return the fee required to apply a transaction to the current ledger. The
-    // current ledger's baseFee is a 32bit value in stroops, but it is returned
-    // as a 64bit value here to minimize the chance of overflow in a subsequent
-    // arithmetic operation.
-    virtual int64_t getTxFee() const = 0;
 
     // return the maximum size of a transaction set to apply to the current
     // ledger

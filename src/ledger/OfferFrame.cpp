@@ -198,7 +198,7 @@ OfferFrame::loadOffers(StatementContext& prep,
 
         oe.buying.type((AssetType)buyingAssetType);
         oe.selling.type((AssetType)sellingAssetType);
-        if (sellingAssetType != ASSET_TYPE_NATIVE)
+        if (true)
         {
             if ((sellingAssetCodeIndicator != soci::i_ok) ||
                 (sellingIssuerIndicator != soci::i_ok))
@@ -222,7 +222,7 @@ OfferFrame::loadOffers(StatementContext& prep,
             }
         }
 
-        if (buyingAssetType != ASSET_TYPE_NATIVE)
+        if (true)
         {
             if ((buyingAssetCodeIndicator != soci::i_ok) ||
                 (buyingIssuerIndicator != soci::i_ok))
@@ -269,57 +269,43 @@ OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
     bool useSellingAsset = false;
     bool useBuyingAsset = false;
 
-    if (selling.type() == ASSET_TYPE_NATIVE)
+    if (selling.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
-        sql += " WHERE sellingassettype = 0 AND sellingissuer IS NULL";
+        assetCodeToStr(selling.alphaNum4().assetCode, sellingAssetCode);
+        sellingIssuerStrKey =
+            KeyUtils::toStrKey(selling.alphaNum4().issuer);
+    }
+    else if (selling.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        assetCodeToStr(selling.alphaNum12().assetCode, sellingAssetCode);
+        sellingIssuerStrKey =
+            KeyUtils::toStrKey(selling.alphaNum12().issuer);
     }
     else
     {
-        if (selling.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
-        {
-            assetCodeToStr(selling.alphaNum4().assetCode, sellingAssetCode);
-            sellingIssuerStrKey =
-                KeyUtils::toStrKey(selling.alphaNum4().issuer);
-        }
-        else if (selling.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
-        {
-            assetCodeToStr(selling.alphaNum12().assetCode, sellingAssetCode);
-            sellingIssuerStrKey =
-                KeyUtils::toStrKey(selling.alphaNum12().issuer);
-        }
-        else
-        {
-            throw std::runtime_error("unknown asset type");
-        }
-
-        useSellingAsset = true;
-        sql += " WHERE sellingassetcode = :pcur AND sellingissuer = :pi";
+        throw std::runtime_error("unknown asset type");
     }
 
-    if (buying.type() == ASSET_TYPE_NATIVE)
+    useSellingAsset = true;
+    sql += " WHERE sellingassetcode = :pcur AND sellingissuer = :pi";
+
+    if (buying.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
-        sql += " AND buyingassettype = 0 AND buyingissuer IS NULL";
+        assetCodeToStr(buying.alphaNum4().assetCode, buyingAssetCode);
+        buyingIssuerStrKey = KeyUtils::toStrKey(buying.alphaNum4().issuer);
+    }
+    else if (buying.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        assetCodeToStr(buying.alphaNum12().assetCode, buyingAssetCode);
+        buyingIssuerStrKey = KeyUtils::toStrKey(buying.alphaNum12().issuer);
     }
     else
     {
-        if (buying.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
-        {
-            assetCodeToStr(buying.alphaNum4().assetCode, buyingAssetCode);
-            buyingIssuerStrKey = KeyUtils::toStrKey(buying.alphaNum4().issuer);
-        }
-        else if (buying.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
-        {
-            assetCodeToStr(buying.alphaNum12().assetCode, buyingAssetCode);
-            buyingIssuerStrKey = KeyUtils::toStrKey(buying.alphaNum12().issuer);
-        }
-        else
-        {
-            throw std::runtime_error("unknown asset type");
-        }
-
-        useBuyingAsset = true;
-        sql += " AND buyingassetcode = :gcur AND buyingissuer = :gi";
+        throw std::runtime_error("unknown asset type");
     }
+
+    useBuyingAsset = true;
+    sql += " AND buyingassetcode = :gcur AND buyingissuer = :gi";
 
     // price is an approximation of the actual n/d (truncated math, 15 digits)
     // ordering by offerid gives precendence to older offers for fairness

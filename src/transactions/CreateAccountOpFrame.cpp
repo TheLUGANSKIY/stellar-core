@@ -11,7 +11,6 @@
 #include "ledger/TrustFrame.h"
 #include "util/Logging.h"
 #include <algorithm>
-
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
@@ -42,39 +41,11 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
         AccountFrame::loadAccount(delta, mCreateAccount.destination, db);
     if (!destAccount)
     {
-        if (mCreateAccount.startingBalance < ledgerManager.getMinBalance(0))
-        { // not over the minBalance to make an account
-            app.getMetrics()
-                .NewMeter({"op-create-account", "failure", "low-reserve"},
-                          "operation")
-                .Mark();
-            innerResult().code(CREATE_ACCOUNT_LOW_RESERVE);
-            return false;
-        }
-        else
-        {
-            int64_t minBalance =
-                mSourceAccount->getMinimumBalance(ledgerManager);
-
-            if ((mSourceAccount->getAccount().balance - minBalance) <
-                mCreateAccount.startingBalance)
-            { // they don't have enough to send
-                app.getMetrics()
-                    .NewMeter({"op-create-account", "failure", "underfunded"},
-                              "operation")
-                    .Mark();
-                innerResult().code(CREATE_ACCOUNT_UNDERFUNDED);
-                return false;
-            }
-
-            mSourceAccount->getAccount().balance -=
-                mCreateAccount.startingBalance;
             mSourceAccount->storeChange(delta, db);
 
             destAccount = make_shared<AccountFrame>(mCreateAccount.destination);
             destAccount->getAccount().seqNum =
                 delta.getHeaderFrame().getStartingSequenceNumber();
-            destAccount->getAccount().balance = mCreateAccount.startingBalance;
 
             destAccount->storeAdd(delta, db);
 
@@ -84,7 +55,6 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
                 .Mark();
             innerResult().code(CREATE_ACCOUNT_SUCCESS);
             return true;
-        }
     }
     else
     {
@@ -100,17 +70,6 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
 bool
 CreateAccountOpFrame::doCheckValid(Application& app)
 {
-    if (mCreateAccount.startingBalance <= 0)
-    {
-        app.getMetrics()
-            .NewMeter(
-                {"op-create-account", "invalid", "malformed-negative-balance"},
-                "operation")
-            .Mark();
-        innerResult().code(CREATE_ACCOUNT_MALFORMED);
-        return false;
-    }
-
     if (mCreateAccount.destination == getSourceID())
     {
         app.getMetrics()

@@ -262,9 +262,6 @@ HistoryTests::generateRandomLedger()
         std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
 
     uint32_t ledgerSeq = lm.getLedgerNum();
-    uint64_t minBalance = lm.getMinBalance(5);
-    uint64_t big = minBalance + ledgerSeq;
-    uint64_t small = 100 + ledgerSeq;
     uint64_t closeTime = 60 * 5 * ledgerSeq;
 
     SequenceNumber rseq = txtest::getAccountSeqNum(mRoot, app) + 1;
@@ -273,43 +270,11 @@ HistoryTests::generateRandomLedger()
 
     // Root sends to alice every tx, bob every other tx, carol every 4rd tx.
     txSet->add(
-        txtest::createCreateAccountTx(networkID, mRoot, mAlice, rseq++, big));
+        txtest::createCreateAccountTx(networkID, mRoot, mAlice, rseq++));
     txSet->add(
-        txtest::createCreateAccountTx(networkID, mRoot, mBob, rseq++, big));
+        txtest::createCreateAccountTx(networkID, mRoot, mBob, rseq++));
     txSet->add(
-        txtest::createCreateAccountTx(networkID, mRoot, mCarol, rseq++, big));
-    txSet->add(txtest::createPaymentTx(networkID, mRoot, mAlice, rseq++, big));
-    txSet->add(txtest::createPaymentTx(networkID, mRoot, mBob, rseq++, big));
-    txSet->add(txtest::createPaymentTx(networkID, mRoot, mCarol, rseq++, big));
-
-    // They all randomly send a little to one another every ledger after #4
-    if (ledgerSeq > 4)
-    {
-        SequenceNumber aseq = txtest::getAccountSeqNum(mAlice, app) + 1;
-        SequenceNumber bseq = txtest::getAccountSeqNum(mBob, app) + 1;
-        SequenceNumber cseq = txtest::getAccountSeqNum(mCarol, app) + 1;
-
-        if (flip())
-            txSet->add(txtest::createPaymentTx(networkID, mAlice, mBob, aseq++,
-                                               small));
-        if (flip())
-            txSet->add(txtest::createPaymentTx(networkID, mAlice, mCarol,
-                                               aseq++, small));
-
-        if (flip())
-            txSet->add(txtest::createPaymentTx(networkID, mBob, mAlice, bseq++,
-                                               small));
-        if (flip())
-            txSet->add(txtest::createPaymentTx(networkID, mBob, mCarol, bseq++,
-                                               small));
-
-        if (flip())
-            txSet->add(txtest::createPaymentTx(networkID, mCarol, mAlice,
-                                               cseq++, small));
-        if (flip())
-            txSet->add(txtest::createPaymentTx(networkID, mCarol, mBob, cseq++,
-                                               small));
-    }
+        txtest::createCreateAccountTx(networkID, mRoot, mCarol, rseq++));
 
     // Provoke sortForHash and hash-caching:
     txSet->getContentsHash();
@@ -336,11 +301,6 @@ HistoryTests::generateRandomLedger()
                                  .getLevel(2)
                                  .getCurr()
                                  ->getHash());
-
-    mRootBalances.push_back(txtest::getAccountBalance(mRoot, app));
-    mAliceBalances.push_back(txtest::getAccountBalance(mAlice, app));
-    mBobBalances.push_back(txtest::getAccountBalance(mBob, app));
-    mCarolBalances.push_back(txtest::getAccountBalance(mCarol, app));
 
     mRootSeqs.push_back(txtest::getAccountSeqNum(mRoot, app));
     mAliceSeqs.push_back(txtest::getAccountSeqNum(mAlice, app));
@@ -579,20 +539,10 @@ HistoryTests::catchupApplication(uint32_t initLedger,
     auto haveBobSeq = mBobSeqs.at(i);
     auto haveCarolSeq = mCarolSeqs.at(i);
 
-    auto wantRootBalance = txtest::getAccountBalance(mRoot, *app2);
-    auto wantAliceBalance = txtest::getAccountBalance(mAlice, *app2);
-    auto wantBobBalance = txtest::getAccountBalance(mBob, *app2);
-    auto wantCarolBalance = txtest::getAccountBalance(mCarol, *app2);
-
     auto wantRootSeq = txtest::getAccountSeqNum(mRoot, *app2);
     auto wantAliceSeq = txtest::getAccountSeqNum(mAlice, *app2);
     auto wantBobSeq = txtest::getAccountSeqNum(mBob, *app2);
     auto wantCarolSeq = txtest::getAccountSeqNum(mCarol, *app2);
-
-    CHECK(haveRootBalance == wantRootBalance);
-    CHECK(haveAliceBalance == wantAliceBalance);
-    CHECK(haveBobBalance == wantBobBalance);
-    CHECK(haveCarolBalance == wantCarolBalance);
 
     CHECK(haveRootSeq == wantRootSeq);
     CHECK(haveAliceSeq == wantAliceSeq);

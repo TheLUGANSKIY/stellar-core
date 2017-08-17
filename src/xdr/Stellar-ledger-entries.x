@@ -16,16 +16,12 @@ typedef opaque DataValue<64>;
 
 enum AssetType
 {
-    ASSET_TYPE_NATIVE = 0,
-    ASSET_TYPE_CREDIT_ALPHANUM4 = 1,
-    ASSET_TYPE_CREDIT_ALPHANUM12 = 2
+    ASSET_TYPE_CREDIT_ALPHANUM4 = 0,
+    ASSET_TYPE_CREDIT_ALPHANUM12 = 1
 };
 
 union Asset switch (AssetType type)
 {
-case ASSET_TYPE_NATIVE: // Not credit
-    void;
-
 case ASSET_TYPE_CREDIT_ALPHANUM4:
     struct
     {
@@ -100,11 +96,9 @@ enum AccountFlags
 struct AccountEntry
 {
     AccountID accountID;      // master public key for this account
-    int64 balance;            // in stroops
     SequenceNumber seqNum;    // last sequence number used for this account
     uint32 numSubEntries;     // number of sub-entries this account has
                               // drives the reserve
-    AccountID* inflationDest; // Account to vote for during inflation
     uint32 flags;             // see AccountFlags
 
     string32 homeDomain; // can be used for reverse federation and memo lookup

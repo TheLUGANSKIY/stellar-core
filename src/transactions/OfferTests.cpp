@@ -48,17 +48,9 @@ TEST_CASE("create offer", "[tx][offers]")
     int64_t trustLineBalance = 100000 * assetMultiplier;
     int64_t trustLineLimit = trustLineBalance * 10;
 
-    int64_t txfee = app.getLedgerManager().getTxFee();
-
-    // minimum balance necessary to hold 2 trust lines
-    const int64_t minBalance2 =
-        app.getLedgerManager().getMinBalance(2) + 20 * txfee;
-
     // sets up gateway account
-    auto gateway = root.create("gateway", minBalance2 * 10);
+    auto gateway = root.create("gateway");
 
-    Asset xlmCur;
-    xlmCur.type(AssetType::ASSET_TYPE_NATIVE);
     Asset idrCur = makeAsset(gateway, "IDR");
     Asset usdCur = makeAsset(gateway, "USD");
 
@@ -80,8 +72,8 @@ TEST_CASE("create offer", "[tx][offers]")
 
             SECTION("passive offer")
             {
-                auto a1 = root.create("A", minBalance2 * 2);
-                auto b1 = root.create("B", minBalance2 * 2);
+                auto a1 = root.create("A");
+                auto b1 = root.create("B");
 
                 a1.changeTrust(idrCur, trustLineLimit);
                 a1.changeTrust(usdCur, trustLineLimit);
@@ -152,7 +144,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             SECTION("negative offer creation tests")
             {
-                auto a1 = root.create("A", minBalance2);
+                auto a1 = root.create("A");
 
                 // sell IDR for USD
 
@@ -196,9 +188,6 @@ TEST_CASE("create offer", "[tx][offers]")
                     a1.manageOffer(0, idrCur, usdCur, oneone, 100),
                     ex_MANAGE_OFFER_LOW_RESERVE);
 
-                // add some funds to create the offer
-                root.pay(a1, minBalance2);
-
                 // can't receive more of what we're trying to buy
                 // first, fill the trust line to the limit
                 gateway.pay(a1, usdCur, trustLineLimit);
@@ -238,10 +227,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             SECTION("offer manipulation")
             {
-                const int64_t minBalanceA =
-                    app.getLedgerManager().getMinBalance(3);
-
-                auto a1 = root.create("A", minBalanceA + 10000);
+                auto a1 = root.create("A");
 
                 a1.changeTrust(usdCur, trustLineLimit);
                 a1.changeTrust(idrCur, trustLineLimit);
@@ -347,7 +333,6 @@ TEST_CASE("create offer", "[tx][offers]")
 
             // minimum balance to hold
             // 2 trust lines and one offer
-            const int64_t minBalance3 = app.getLedgerManager().getMinBalance(3);
 
             SECTION("a1 setup properly")
             {
@@ -357,15 +342,12 @@ TEST_CASE("create offer", "[tx][offers]")
 
                 const int nbOffers = 22;
 
-                const int64_t minBalanceA =
-                    app.getLedgerManager().getMinBalance(3 + nbOffers);
-
-                auto a1 = root.create("A", minBalanceA + 10000);
+                auto a1 = root.create("A");
 
                 a1.changeTrust(usdCur, trustLineLimit);
                 a1.changeTrust(idrCur, trustLineLimit);
                 gateway.pay(a1, idrCur, trustLineBalance);
-                SECTION("Native offers")
+                /*SECTION("Native offers")
                 {
                     const Price somePrice(3, 2);
                     SECTION("IDR -> XLM")
@@ -378,7 +360,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         a1.manageOffer(0, idrCur, xlmCur, somePrice,
                                        100 * assetMultiplier);
                     }
-                }
+                }*/
 
                 SECTION("multiple offers tests")
                 {
@@ -410,7 +392,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                 usdCur.alphaNum4().assetCode);
                     }
 
-                    auto b1 = root.create("B", minBalance3 + 10000);
+                    auto b1 = root.create("B");
 
                     b1.changeTrust(idrCur, trustLineLimit);
                     b1.changeTrust(usdCur, trustLineLimit);
@@ -526,69 +508,69 @@ TEST_CASE("create offer", "[tx][offers]")
                         auto askPrice = Price{2551, 625}; // ask for 4.0816000
 
                         auto askingOfferAccount =
-                            root.create("asking offer account", 10000000000);
+                            root.create("asking offer account");
                         auto biddingOfferAccount =
-                            root.create("bidding offer account", 10000000000);
+                            root.create("bidding offer account");
                         askingOfferAccount.changeTrust(idrCur, trustLineLimit);
                         biddingOfferAccount.changeTrust(idrCur, trustLineLimit);
                         gateway.pay(askingOfferAccount, idrCur,
                                     trustLineBalance);
 
-                        SECTION("bid before ask uses bid price")
-                        {
-                            auto biddingOfferID =
-                                biddingOfferAccount.manageOffer(
-                                    0, xlmCur, idrCur, bidPrice, bidAmount);
-                            auto askingOfferID = askingOfferAccount.manageOffer(
-                                0, idrCur, xlmCur, askPrice, askAmount);
+                        //SECTION("bid before ask uses bid price")
+                        //{
+                        //    auto biddingOfferID =
+                        //        biddingOfferAccount.manageOffer(
+                        //            0, xlmCur, idrCur, bidPrice, bidAmount);
+                        //    auto askingOfferID = askingOfferAccount.manageOffer(
+                        //        0, idrCur, xlmCur, askPrice, askAmount);
 
-                            auto askingOffer =
-                                askingOfferAccount.loadOffer(askingOfferID)
-                                    ->getOffer();
+                        //    auto askingOffer =
+                        //        askingOfferAccount.loadOffer(askingOfferID)
+                        //            ->getOffer();
 
-                            if (app.getLedgerManager()
-                                    .getCurrentLedgerVersion() <= 2)
-                            {
-                                auto biddingOffer =
-                                    biddingOfferAccount
-                                        .loadOffer(biddingOfferID)
-                                        ->getOffer();
-                                REQUIRE(askingOffer.amount ==
-                                        4715278); // 8224563625 / 4.1220000 =
-                                                  // 1995284722,22 = 2000000000
-                                                  // - 4715278 (rounding down)
-                                REQUIRE(biddingOffer.amount ==
-                                        1); // rounding error, should be 0
-                            }
-                            else
-                            {
-                                REQUIRE(askingOffer.amount ==
-                                        4715277); // 8224563625 / 4.1220000 =
-                                                  // 1995284722,22 = 2000000000
-                                                  // - 4715277 (rounding up)
-                                REQUIRE(!biddingOfferAccount.hasOffer(
-                                    biddingOfferID));
-                            }
-                        }
+                        //    if (app.getLedgerManager()
+                        //            .getCurrentLedgerVersion() <= 2)
+                        //    {
+                        //        auto biddingOffer =
+                        //            biddingOfferAccount
+                        //                .loadOffer(biddingOfferID)
+                        //                ->getOffer();
+                        //        REQUIRE(askingOffer.amount ==
+                        //                4715278); // 8224563625 / 4.1220000 =
+                        //                          // 1995284722,22 = 2000000000
+                        //                          // - 4715278 (rounding down)
+                        //        REQUIRE(biddingOffer.amount ==
+                        //                1); // rounding error, should be 0
+                        //    }
+                        //    else
+                        //    {
+                        //        REQUIRE(askingOffer.amount ==
+                        //                4715277); // 8224563625 / 4.1220000 =
+                        //                          // 1995284722,22 = 2000000000
+                        //                          // - 4715277 (rounding up)
+                        //        REQUIRE(!biddingOfferAccount.hasOffer(
+                        //            biddingOfferID));
+                        //    }
+                        //}
 
-                        SECTION("ask before bid uses ask price")
-                        {
-                            auto askingOfferID = askingOfferAccount.manageOffer(
-                                0, idrCur, xlmCur, askPrice, askAmount);
-                            auto biddingOfferID =
-                                biddingOfferAccount.manageOffer(
-                                    0, xlmCur, idrCur, bidPrice, bidAmount);
+                        //SECTION("ask before bid uses ask price")
+                        //{
+                        //    auto askingOfferID = askingOfferAccount.manageOffer(
+                        //        0, idrCur, xlmCur, askPrice, askAmount);
+                        //    auto biddingOfferID =
+                        //        biddingOfferAccount.manageOffer(
+                        //            0, xlmCur, idrCur, bidPrice, bidAmount);
 
-                            REQUIRE(
-                                !askingOfferAccount.hasOffer(askingOfferID));
-                            auto biddingOffer =
-                                biddingOfferAccount.loadOffer(biddingOfferID)
-                                    ->getOffer();
-                            REQUIRE(biddingOffer.amount ==
-                                    61363625); // 2000000000 * 4.0816000 =
-                                               // 8163200000 = 8224563625 -
-                                               // 61363625
-                        }
+                        //    REQUIRE(
+                        //        !askingOfferAccount.hasOffer(askingOfferID));
+                        //    auto biddingOffer =
+                        //        biddingOfferAccount.loadOffer(biddingOfferID)
+                        //            ->getOffer();
+                        //    REQUIRE(biddingOffer.amount ==
+                        //            61363625); // 2000000000 * 4.0816000 =
+                        //                       // 8163200000 = 8224563625 -
+                        //                       // 61363625
+                        //}
                     }
 
                     TrustFrame::pointer line;
@@ -762,7 +744,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         line = loadTrustLine(b1, idrCur, app);
                         int64_t b1_idr = line->getBalance();
 
-                        auto c1 = root.create("C", minBalance3 + 10000);
+                        auto c1 = root.create("C");
 
                         // inject also an offer that should get cleaned up
                         uint64_t cOfferID = 0;
@@ -839,7 +821,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     SECTION("multiple parties")
                     {
                         // b1 sells the same thing
-                        auto b1 = root.create("B", minBalance3 + 10000);
+                        auto b1 = root.create("B");
 
                         b1.changeTrust(idrCur, trustLineLimit);
                         b1.changeTrust(usdCur, trustLineLimit);
@@ -852,7 +834,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
                         offer = b1.loadOffer(offerB1);
 
-                        auto c1 = root.create("C", minBalanceA + 10000);
+                        auto c1 = root.create("C");
 
                         c1.changeTrust(usdCur, trustLineLimit);
                         c1.changeTrust(idrCur, trustLineLimit);
@@ -922,7 +904,7 @@ TEST_CASE("create offer", "[tx][offers]")
                             {
                                 // sets up the secure gateway account for USD
                                 auto secgateway =
-                                    root.create("secure", minBalance2);
+                                    root.create("secure");
 
                                 Asset secUsdCur = makeAsset(secgateway, "USD");
                                 Asset secIdrCur = makeAsset(secgateway, "IDR");
@@ -930,11 +912,10 @@ TEST_CASE("create offer", "[tx][offers]")
                                 uint32_t setFlags =
                                     AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG;
                                 secgateway.setOptions(nullptr, &setFlags,
-                                                      nullptr, nullptr, nullptr,
-                                                      nullptr);
+                                                      nullptr, nullptr, nullptr);
 
                                 // setup d1
-                                auto d1 = root.create("D", minBalance3 + 10000);
+                                auto d1 = root.create("D");
 
                                 d1.changeTrust(secIdrCur, trustLineLimit);
                                 d1.changeTrust(secUsdCur, trustLineLimit);
@@ -963,7 +944,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                 }
 
                                 // setup e1
-                                auto e1 = root.create("E", minBalance3 + 10000);
+                                auto e1 = root.create("E");
 
                                 e1.changeTrust(secIdrCur, trustLineLimit);
                                 e1.changeTrust(secUsdCur, trustLineLimit);
@@ -978,7 +959,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                     100 * assetMultiplier);
 
                                 // setup f1
-                                auto f1 = root.create("F", minBalance3 + 10000);
+                                auto f1 = root.create("F");
 
                                 f1.changeTrust(secIdrCur, trustLineLimit);
                                 f1.changeTrust(secUsdCur, trustLineLimit);
@@ -1171,9 +1152,9 @@ TEST_CASE("create offer", "[tx][offers]")
         }
     }
 
-    SECTION("offers with invalid prices")
+    /*SECTION("offers with invalid prices")
     {
-        auto a = root.create("A", minBalance2 * 2);
+        auto a = root.create("A");
         a.changeTrust(idrCur, trustLineLimit);
         REQUIRE_THROWS_AS(a.manageOffer(0, xlmCur, idrCur, Price{-1, -1},
                                         150 * assetMultiplier),
@@ -1199,7 +1180,7 @@ TEST_CASE("create offer", "[tx][offers]")
         REQUIRE_THROWS_AS(a.manageOffer(0, xlmCur, idrCur, Price{1, 0},
                                         150 * assetMultiplier),
                           ex_MANAGE_OFFER_MALFORMED);
-    }
+    }*/
 }
 
 TEST_CASE("Exchange", "[offers]")

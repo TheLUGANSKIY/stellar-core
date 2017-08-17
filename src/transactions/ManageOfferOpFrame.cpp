@@ -47,7 +47,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
         return true;
     }
 
-    if (sheep.type() != ASSET_TYPE_NATIVE)
+    if (true)
     {
         auto tlI =
             TrustFrame::loadTrustLineIssuer(getSourceID(), sheep, db, delta);
@@ -91,7 +91,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
         }
     }
 
-    if (wheat.type() != ASSET_TYPE_NATIVE)
+    if (true)
     {
         auto tlI =
             TrustFrame::loadTrustLineIssuer(getSourceID(), wheat, db, delta);
@@ -194,34 +194,19 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
     }
     else
     {
-        if (sheep.type() == ASSET_TYPE_NATIVE)
-        {
-            maxAmountOfSheepCanSell =
-                mSourceAccount->getBalanceAboveReserve(ledgerManager);
-        }
-        else
-        {
-            maxAmountOfSheepCanSell = mSheepLineA->getBalance();
-        }
-
+        maxAmountOfSheepCanSell = mSheepLineA->getBalance();
+        
         // the maximum is defined by how much wheat it can receive
         int64_t maxWheatCanSell;
-        if (wheat.type() == ASSET_TYPE_NATIVE)
+        maxWheatCanSell = mWheatLineA->getMaxAmountReceive();
+        if (maxWheatCanSell == 0)
         {
-            maxWheatCanSell = INT64_MAX;
-        }
-        else
-        {
-            maxWheatCanSell = mWheatLineA->getMaxAmountReceive();
-            if (maxWheatCanSell == 0)
-            {
-                app.getMetrics()
-                    .NewMeter({"op-manage-offer", "invalid", "line-full"},
-                              "operation")
-                    .Mark();
-                innerResult().code(MANAGE_OFFER_LINE_FULL);
-                return false;
-            }
+            app.getMetrics()
+                .NewMeter({"op-manage-offer", "invalid", "line-full"},
+                            "operation")
+                .Mark();
+            innerResult().code(MANAGE_OFFER_LINE_FULL);
+            return false;
         }
 
         Price const& sheepPrice = mSellSheepOffer->getPrice();
@@ -300,36 +285,20 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
         {
             // it's OK to use mSourceAccount, mWheatLineA and mSheepLineA
             // here as OfferExchange won't cross offers from source account
-            if (wheat.type() == ASSET_TYPE_NATIVE)
+            if (!mWheatLineA->addBalance(wheatReceived))
             {
-                mSourceAccount->getAccount().balance += wheatReceived;
-                mSourceAccount->storeChange(delta, db);
-            }
-            else
-            {
-                if (!mWheatLineA->addBalance(wheatReceived))
-                {
-                    // this would indicate a bug in OfferExchange
-                    throw std::runtime_error("offer claimed over limit");
-                }
-
-                mWheatLineA->storeChange(delta, db);
+                // this would indicate a bug in OfferExchange
+                throw std::runtime_error("offer claimed over limit");
             }
 
-            if (sheep.type() == ASSET_TYPE_NATIVE)
+            mWheatLineA->storeChange(delta, db);
+
+            if (!mSheepLineA->addBalance(-sheepSent))
             {
-                mSourceAccount->getAccount().balance -= sheepSent;
-                mSourceAccount->storeChange(delta, db);
+                // this would indicate a bug in OfferExchange
+                throw std::runtime_error("offer sold more than balance");
             }
-            else
-            {
-                if (!mSheepLineA->addBalance(-sheepSent))
-                {
-                    // this would indicate a bug in OfferExchange
-                    throw std::runtime_error("offer sold more than balance");
-                }
-                mSheepLineA->storeChange(delta, db);
-            }
+            mSheepLineA->storeChange(delta, db);   
         }
 
         // recomputes the amount of sheep for sale

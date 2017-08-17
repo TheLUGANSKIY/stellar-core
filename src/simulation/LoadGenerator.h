@@ -47,7 +47,6 @@ class LoadGenerator
     std::vector<AccountInfoPtr> mMarketMakers;
 
     std::unique_ptr<VirtualTimer> mLoadTimer;
-    int64 mMinBalance;
     uint64_t mLastSecond;
 
     // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
@@ -70,9 +69,6 @@ class LoadGenerator
     bool loadAccount(Application& app, AccountInfoPtr account);
     bool loadAccounts(Application& app, std::vector<AccountInfoPtr> accounts);
 
-    TxInfo createTransferNativeTransaction(AccountInfoPtr from,
-                                           AccountInfoPtr to, int64_t amount);
-
     TxInfo
     createTransferCreditTransaction(AccountInfoPtr from, AccountInfoPtr to,
                                     int64_t amount,
@@ -86,7 +82,6 @@ class LoadGenerator
 
     TxInfo createRandomTransaction(float alpha, uint32_t ledgerNum = 0);
     std::vector<TxInfo> createRandomTransactions(size_t n, float paretoAlpha);
-    void updateMinBalance(Application& app);
 
     struct TrustLineInfo
     {
@@ -97,12 +92,11 @@ class LoadGenerator
 
     struct AccountInfo : public std::enable_shared_from_this<AccountInfo>
     {
-        AccountInfo(size_t id, SecretKey key, int64_t balance,
+        AccountInfo(size_t id, SecretKey key,
                     SequenceNumber seq, uint32_t lastChangedLedger,
                     LoadGenerator& loadGen);
         size_t mId;
         SecretKey mKey;
-        int64_t mBalance;
         SequenceNumber mSeq;
         uint32_t mLastChangedLedger;
 
@@ -138,7 +132,6 @@ class LoadGenerator
         medida::Meter& mTrustlineCreated;
         medida::Meter& mOfferCreated;
         medida::Meter& mPayment;
-        medida::Meter& mNativePayment;
         medida::Meter& mCreditPayment;
         medida::Meter& mOneOfferPathPayment;
         medida::Meter& mTwoOfferPathPayment;
@@ -161,7 +154,6 @@ class LoadGenerator
         enum
         {
             TX_CREATE_ACCOUNT,
-            TX_TRANSFER_NATIVE,
             TX_TRANSFER_CREDIT
         } mType;
         int64_t mAmount;
@@ -173,7 +165,7 @@ class LoadGenerator
         void toTransactionFrames(Hash const& networkID,
                                  std::vector<TransactionFramePtr>& txs,
                                  TxMetrics& metrics);
-        void recordExecution(int64_t baseFee);
+        void recordExecution();
     };
 };
 }

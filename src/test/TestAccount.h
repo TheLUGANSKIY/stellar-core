@@ -29,15 +29,14 @@ class TestAccount
     {
     }
 
-    TestAccount create(SecretKey const& secretKey, uint64_t initialBalance);
-    TestAccount create(std::string const& name, uint64_t initialBalance);
-    void merge(PublicKey const& into);
+    TestAccount create(SecretKey const& secretKey);
+    TestAccount create(std::string const& name);
 
     void changeTrust(Asset const& asset, int64_t limit);
     void allowTrust(Asset const& asset, PublicKey const& trustor);
     void denyTrust(Asset const& asset, PublicKey const& trustor);
 
-    void setOptions(AccountID* inflationDest, uint32_t* setFlags,
+    void setOptions(uint32_t* setFlags,
                     uint32_t* clearFlags, txtest::ThresholdSetter* thrs,
                     Signer* signer, std::string* homeDomain);
 
@@ -53,7 +52,6 @@ class TestAccount
     createPassiveOffer(Asset const& selling, Asset const& buying,
                        Price const& price, int64_t amount,
                        ManageOfferEffect expectedEffect = MANAGE_OFFER_CREATED);
-    void pay(SecretKey const& destination, int64_t amount);
     void pay(PublicKey const& destination, Asset const& selling,
              int64_t amount);
     PathPaymentResult pay(PublicKey const& destination, Asset const& sendCur,

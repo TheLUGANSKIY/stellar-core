@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="DebugNoPostgres|x64">
       <Configuration>DebugNoPostgres</Configuration>
@@ -17,24 +17,25 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{916B91AB-A300-422C-B9C2-D683924DC109}</ProjectGuid>
     <RootNamespace>stellar-core</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>LLVM-vs2014</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
@@ -241,6 +242,7 @@
     <ClCompile Include="..\..\src\herder\Herder.cpp" />
     <ClCompile Include="..\..\src\herder\HerderImpl.cpp" />
     <ClCompile Include="..\..\src\herder\HerderTests.cpp" />
+    <ClCompile Include="..\..\src\herder\HerderUtils.cpp" />
     <ClCompile Include="..\..\src\herder\LedgerCloseData.cpp" />
     <ClCompile Include="..\..\src\herder\PendingEnvelopes.cpp" />
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp" />
@@ -366,10 +368,6 @@
     <ClCompile Include="..\..\src\transactions\ManageDataOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ManageDataTests.cpp" />
     <ClCompile Include="..\..\src\transactions\ManageOfferOpFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\InflationOpFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\InflationTests.cpp" />
-    <ClCompile Include="..\..\src\transactions\MergeOpFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\MergeTests.cpp" />
     <ClCompile Include="..\..\src\transactions\OfferExchange.cpp" />
     <ClCompile Include="..\..\src\transactions\OfferTests.cpp" />
     <ClCompile Include="..\..\src\transactions\OperationFrame.cpp" />
@@ -523,8 +521,6 @@
     <ClInclude Include="..\..\src\transactions\CreatePassiveOfferOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ManageDataOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ManageOfferOpFrame.h" />
-    <ClInclude Include="..\..\src\transactions\InflationOpFrame.h" />
-    <ClInclude Include="..\..\src\transactions\MergeOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\OfferExchange.h" />
     <ClInclude Include="..\..\src\transactions\OperationFrame.h" />
     <ClInclude Include="..\..\src\transactions\PathPaymentOpFrame.h" />

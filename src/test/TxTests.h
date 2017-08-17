@@ -64,8 +64,6 @@ TrustFrame::pointer loadTrustLine(SecretKey const& k, Asset const& asset,
 
 SequenceNumber getAccountSeqNum(SecretKey const& k, Application& app);
 
-int64_t getAccountBalance(SecretKey const& k, Application& app);
-
 xdr::xvector<Signer, 20> getAccountSigners(SecretKey const& k,
                                            Application& app);
 
@@ -100,21 +98,10 @@ void applyAllowTrust(Application& app, SecretKey const& from,
 TransactionFramePtr createCreateAccountTx(Hash const& networkID,
                                           SecretKey const& from,
                                           SecretKey const& to,
-                                          SequenceNumber seq, int64_t amount);
+                                          SequenceNumber seq);
 
 void applyCreateAccountTx(Application& app, SecretKey const& from,
-                          SecretKey const& to, SequenceNumber seq,
-                          int64_t amount);
-
-Operation createPaymentOp(SecretKey const* from, SecretKey const& to,
-                          int64_t amount);
-
-TransactionFramePtr createPaymentTx(Hash const& networkID,
-                                    SecretKey const& from, SecretKey const& to,
-                                    SequenceNumber seq, int64_t amount);
-
-void applyPaymentTx(Application& app, SecretKey const& from,
-                    SecretKey const& to, SequenceNumber seq, int64_t amount);
+                          SecretKey const& to, SequenceNumber seq);
 
 TransactionFramePtr createCreditPaymentTx(Hash const& networkID,
                                           SecretKey const& from,
@@ -164,28 +151,14 @@ uint64_t applyCreatePassiveOffer(Application& app, SecretKey const& source,
 
 TransactionFramePtr createSetOptions(
     Hash const& networkID, SecretKey const& source, SequenceNumber seq,
-    AccountID* inflationDest, uint32_t* setFlags, uint32_t* clearFlags,
+    uint32_t* setFlags, uint32_t* clearFlags,
     ThresholdSetter* thrs, Signer* signer, std::string* homeDomain);
 
 void applySetOptions(Application& app, SecretKey const& source,
-                     SequenceNumber seq, AccountID* inflationDest,
+                     SequenceNumber seq,
                      uint32_t* setFlags, uint32_t* clearFlags,
                      ThresholdSetter* thrs, Signer* signer,
                      std::string* homeDomain);
-
-TransactionFramePtr createInflation(Hash const& networkID,
-                                    SecretKey const& from, SequenceNumber seq);
-OperationResult
-applyInflation(Application& app, SecretKey const& from, SequenceNumber seq,
-               InflationResultCode targetResult = INFLATION_SUCCESS);
-
-TransactionFramePtr createAccountMerge(Hash const& networkID,
-                                       SecretKey const& source,
-                                       PublicKey const& dest,
-                                       SequenceNumber seq);
-
-void applyAccountMerge(Application& app, SecretKey const& source,
-                       PublicKey const& dest, SequenceNumber seq);
 
 TransactionFramePtr createManageData(Hash const& networkID,
                                      SecretKey const& source,

@@ -26,10 +26,8 @@ const char* AccountFrame::kSQLCreateStatement1 =
     "CREATE TABLE accounts"
     "("
     "accountid       VARCHAR(56)  PRIMARY KEY,"
-    "balance         BIGINT       NOT NULL CHECK (balance >= 0),"
     "seqnum          BIGINT       NOT NULL,"
     "numsubentries   INT          NOT NULL CHECK (numsubentries >= 0),"
-    "inflationdest   VARCHAR(56),"
     "homedomain      VARCHAR(32)  NOT NULL,"
     "thresholds      TEXT         NOT NULL,"
     "flags           INT          NOT NULL,"
@@ -48,9 +46,9 @@ const char* AccountFrame::kSQLCreateStatement2 =
 const char* AccountFrame::kSQLCreateStatement3 =
     "CREATE INDEX signersaccount ON signers (accountid)";
 
-const char* AccountFrame::kSQLCreateStatement4 = "CREATE INDEX accountbalances "
-                                                 "ON accounts (balance) WHERE "
-                                                 "balance >= 1000000000";
+//const char* AccountFrame::kSQLCreateStatement4 = "CREATE INDEX accountbalances "
+//                                                 "ON accounts (balance) WHERE "
+//                                                 "balance >= 1000000000";
 
 AccountFrame::AccountFrame()
     : EntryFrame(ACCOUNT), mAccountEntry(mEntry.data.account())
@@ -82,7 +80,6 @@ AccountFrame::makeAuthOnlyAccount(AccountID const& id)
 {
     AccountFrame::pointer ret = make_shared<AccountFrame>(id);
     // puts a negative balance to trip any attempt to save this
-    ret->mAccountEntry.balance = INT64_MIN;
 
     return ret;
 }
@@ -104,7 +101,7 @@ bool
 AccountFrame::isValid()
 {
     auto const& a = mAccountEntry;
-    return isString32Valid(a.homeDomain) && a.balance >= 0 &&
+    return isString32Valid(a.homeDomain) &&
            std::is_sorted(a.signers.begin(), a.signers.end(),
                           &AccountFrame::signerCompare);
 }
@@ -121,32 +118,6 @@ AccountFrame::isImmutableAuth() const
     return (mAccountEntry.flags & AUTH_IMMUTABLE_FLAG) != 0;
 }
 
-int64_t
-AccountFrame::getBalance() const
-{
-    return (mAccountEntry.balance);
-}
-
-int64_t
-AccountFrame::getMinimumBalance(LedgerManager const& lm) const
-{
-    return lm.getMinBalance(mAccountEntry.numSubEntries);
-}
-
-int64_t
-AccountFrame::getBalanceAboveReserve(LedgerManager const& lm) const
-{
-    int64_t avail =
-        getBalance() - lm.getMinBalance(mAccountEntry.numSubEntries);
-    if (avail < 0)
-    {
-        // nothing can leave this account if below the reserve
-        // (this can happen if the reserve is raised)
-        avail = 0;
-    }
-    return avail;
-}
-
 // returns true if successfully updated,
 // false if balance is not sufficient
 bool
@@ -157,12 +128,7 @@ AccountFrame::addNumEntries(int count, LedgerManager const& lm)
     {
         throw std::runtime_error("invalid account state");
     }
-    // only check minBalance when attempting to add subEntries
-    if (count > 0 && getBalance() < lm.getMinBalance(newEntriesCount))
-    {
-        // balance too low
-        return false;
-    }
+    
     mAccountEntry.numSubEntries = newEntriesCount;
     return true;
 }
@@ -223,23 +189,20 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
 
     std::string actIDStrKey = KeyUtils::toStrKey(accountID);
 
-    std::string publicKey, inflationDest, creditAuthKey;
+    std::string publicKey, creditAuthKey;
     std::string homeDomain, thresholds;
-    soci::indicator inflationDestInd;
 
     AccountFrame::pointer res = make_shared<AccountFrame>(accountID);
     AccountEntry& account = res->getAccount();
 
     auto prep =
-        db.getPreparedStatement("SELECT balance, seqnum, numsubentries, "
-                                "inflationdest, homedomain, thresholds, "
+        db.getPreparedStatement("SELECT seqnum, numsubentries, "
+                                "homedomain, thresholds, "
                                 "flags, lastmodified "
                                 "FROM accounts WHERE accountid=:v1");
     auto& st = prep.statement();
-    st.exchange(into(account.balance));
     st.exchange(into(account.seqNum));
     st.exchange(into(account.numSubEntries));
-    st.exchange(into(inflationDest, inflationDestInd));
     st.exchange(into(homeDomain));
     st.exchange(into(thresholds));
     st.exchange(into(account.flags));
@@ -261,12 +224,6 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
 
     bn::decode_b64(thresholds.begin(), thresholds.end(),
                    res->mAccountEntry.thresholds.begin());
-
-    if (inflationDestInd == soci::i_ok)
-    {
-        account.inflationDest.activate() =
-            KeyUtils::fromStrKey<PublicKey>(inflationDest);
-    }
 
     account.signers.clear();
 
@@ -396,40 +353,29 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
     if (insert)
     {
         sql = std::string(
-            "INSERT INTO accounts ( accountid, balance, seqnum, "
-            "numsubentries, inflationdest, homedomain, thresholds, flags, "
+            "INSERT INTO accounts ( accountid, seqnum, "
+            "numsubentries, homedomain, thresholds, flags, "
             "lastmodified ) "
-            "VALUES ( :id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8 )");
+            "VALUES ( :id, :v2, :v3, :v5, :v6, :v7, :v8 )");
     }
     else
     {
         sql = std::string(
-            "UPDATE accounts SET balance = :v1, seqnum = :v2, "
+            "UPDATE accounts SET seqnum = :v2, "
             "numsubentries = :v3, "
-            "inflationdest = :v4, homedomain = :v5, thresholds = :v6, "
+            "homedomain = :v5, thresholds = :v6, "
             "flags = :v7, lastmodified = :v8 WHERE accountid = :id");
     }
 
     auto prep = db.getPreparedStatement(sql);
-
-    soci::indicator inflation_ind = soci::i_null;
-    string inflationDestStrKey;
-
-    if (mAccountEntry.inflationDest)
-    {
-        inflationDestStrKey = KeyUtils::toStrKey(*mAccountEntry.inflationDest);
-        inflation_ind = soci::i_ok;
-    }
 
     string thresholds(bn::encode_b64(mAccountEntry.thresholds));
 
     {
         soci::statement& st = prep.statement();
         st.exchange(use(actIDStrKey, "id"));
-        st.exchange(use(mAccountEntry.balance, "v1"));
         st.exchange(use(mAccountEntry.seqNum, "v2"));
         st.exchange(use(mAccountEntry.numSubEntries, "v3"));
-        st.exchange(use(inflationDestStrKey, inflation_ind, "v4"));
         string homeDomain(mAccountEntry.homeDomain);
         st.exchange(use(homeDomain, "v5"));
         st.exchange(use(thresholds, "v6"));
@@ -593,38 +539,6 @@ AccountFrame::storeAdd(LedgerDelta& delta, Database& db)
     storeUpdate(delta, db, true);
 }
 
-void
-AccountFrame::processForInflation(
-    std::function<bool(AccountFrame::InflationVotes const&)> inflationProcessor,
-    int maxWinners, Database& db)
-{
-    soci::session& session = db.getSession();
-
-    InflationVotes v;
-    std::string inflationDest;
-
-    soci::statement st =
-        (session.prepare
-             << "SELECT"
-                " sum(balance) AS votes, inflationdest FROM accounts WHERE"
-                " inflationdest IS NOT NULL"
-                " AND balance >= 1000000000 GROUP BY inflationdest"
-                " ORDER BY votes DESC, inflationdest DESC LIMIT :lim",
-         into(v.mVotes), into(inflationDest), use(maxWinners));
-
-    st.execute(true);
-
-    while (st.got_data())
-    {
-        v.mInflationDest = KeyUtils::fromStrKey<PublicKey>(inflationDest);
-        if (!inflationProcessor(v))
-        {
-            break;
-        }
-        st.fetch();
-    }
-}
-
 std::unordered_map<AccountID, AccountFrame::pointer>
 AccountFrame::checkDB(Database& db)
 {
@@ -686,6 +600,6 @@ AccountFrame::dropAll(Database& db)
     db.getSession() << kSQLCreateStatement1;
     db.getSession() << kSQLCreateStatement2;
     db.getSession() << kSQLCreateStatement3;
-    db.getSession() << kSQLCreateStatement4;
+    //db.getSession() << kSQLCreateStatement4;
 }
 }

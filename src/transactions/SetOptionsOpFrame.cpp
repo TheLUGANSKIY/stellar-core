@@ -45,23 +45,6 @@ SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
     Database& db = ledgerManager.getDatabase();
     AccountEntry& account = mSourceAccount->getAccount();
 
-    if (mSetOptions.inflationDest)
-    {
-        AccountFrame::pointer inflationAccount;
-        AccountID inflationID = *mSetOptions.inflationDest;
-        inflationAccount = AccountFrame::loadAccount(delta, inflationID, db);
-        if (!inflationAccount)
-        {
-            app.getMetrics()
-                .NewMeter({"op-set-options", "failure", "invalid-inflation"},
-                          "operation")
-                .Mark();
-            innerResult().code(SET_OPTIONS_INVALID_INFLATION);
-            return false;
-        }
-        account.inflationDest.activate() = inflationID;
-    }
-
     if (mSetOptions.clearFlags)
     {
         if ((*mSetOptions.clearFlags & allAccountAuthFlags) &&

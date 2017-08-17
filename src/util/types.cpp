@@ -60,9 +60,6 @@ isString32Valid(std::string const& str)
 bool
 isAssetValid(Asset const& cur)
 {
-    if (cur.type() == ASSET_TYPE_NATIVE)
-        return true;
-
     if (cur.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
         auto const& code = cur.alphaNum4().assetCode;
@@ -134,9 +131,6 @@ compareAsset(Asset const& first, Asset const& second)
 {
     if (first.type() != second.type())
         return false;
-
-    if (first.type() == ASSET_TYPE_NATIVE)
-        return true;
 
     if (second.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
     {

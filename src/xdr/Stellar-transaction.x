@@ -23,9 +23,7 @@ enum OperationType
     SET_OPTIONS = 5,
     CHANGE_TRUST = 6,
     ALLOW_TRUST = 7,
-    ACCOUNT_MERGE = 8,
-    INFLATION = 9,
-    MANAGE_DATA = 10
+    MANAGE_DATA = 8
 };
 
 /* CreateAccount
@@ -40,7 +38,6 @@ Result: CreateAccountResult
 struct CreateAccountOp
 {
     AccountID destination; // account to create
-    int64 startingBalance; // amount they end up with
 };
 
 /* Payment
@@ -128,8 +125,6 @@ struct CreatePassiveOfferOp
 
 struct SetOptionsOp
 {
-    AccountID* inflationDest; // sets the inflation destination
-
     uint32* clearFlags; // which flags to clear
     uint32* setFlags;   // which flags to set
 
@@ -189,23 +184,6 @@ struct AllowTrustOp
     bool authorize;
 };
 
-/* Inflation
-    Runs inflation
-
-Threshold: low
-
-Result: InflationResult
-
-*/
-
-/* AccountMerge
-    Transfers native balance to destination account.
-
-    Threshold: high
-
-    Result : AccountMergeResult
-*/
-
 /* ManageData
     Adds, Updates, or Deletes a key value pair associated with a particular 
 	account.
@@ -247,10 +225,6 @@ struct Operation
         ChangeTrustOp changeTrustOp;
     case ALLOW_TRUST:
         AllowTrustOp allowTrustOp;
-    case ACCOUNT_MERGE:
-        AccountID destination;
-    case INFLATION:
-        void;
     case MANAGE_DATA:
         ManageDataOp manageDataOp;
     }
@@ -298,9 +272,6 @@ struct Transaction
 {
     // account used to run the transaction
     AccountID sourceAccount;
-
-    // the fee the sourceAccount will pay
-    uint32 fee;
 
     // sequence number to consume in the account
     SequenceNumber seqNum;
@@ -580,51 +551,6 @@ default:
     void;
 };
 
-/******* AccountMerge Result ********/
-
-enum AccountMergeResultCode
-{
-    // codes considered as "success" for the operation
-    ACCOUNT_MERGE_SUCCESS = 0,
-    // codes considered as "failure" for the operation
-    ACCOUNT_MERGE_MALFORMED = -1,      // can't merge onto itself
-    ACCOUNT_MERGE_NO_ACCOUNT = -2,     // destination does not exist
-    ACCOUNT_MERGE_IMMUTABLE_SET = -3,  // source account has AUTH_IMMUTABLE set
-    ACCOUNT_MERGE_HAS_SUB_ENTRIES = -4 // account has trust lines/offers
-};
-
-union AccountMergeResult switch (AccountMergeResultCode code)
-{
-case ACCOUNT_MERGE_SUCCESS:
-    int64 sourceAccountBalance; // how much got transfered from source account
-default:
-    void;
-};
-
-/******* Inflation Result ********/
-
-enum InflationResultCode
-{
-    // codes considered as "success" for the operation
-    INFLATION_SUCCESS = 0,
-    // codes considered as "failure" for the operation
-    INFLATION_NOT_TIME = -1
-};
-
-struct InflationPayout // or use PaymentResultAtom to limit types?
-{
-    AccountID destination;
-    int64 amount;
-};
-
-union InflationResult switch (InflationResultCode code)
-{
-case INFLATION_SUCCESS:
-    InflationPayout payouts<>;
-default:
-    void;
-};
-
 /******* ManageData Result ********/
 
 enum ManageDataResultCode
@@ -677,10 +603,6 @@ case opINNER:
         ChangeTrustResult changeTrustResult;
     case ALLOW_TRUST:
         AllowTrustResult allowTrustResult;
-    case ACCOUNT_MERGE:
-        AccountMergeResult accountMergeResult;
-    case INFLATION:
-        InflationResult inflationResult;
     case MANAGE_DATA:
         ManageDataResult manageDataResult;
     }
@@ -710,8 +632,6 @@ enum TransactionResultCode
 
 struct TransactionResult
 {
-    int64 feeCharged; // actual fee charged for the transaction
-
     union switch (TransactionResultCode code)
     {
     case txSUCCESS:

@@ -40,7 +40,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
     // set up world
     auto root = TestAccount::createRoot(app);
-    auto a1 = root.create("A", app.getLedgerManager().getMinBalance(0) + 1000);
+    auto a1 = root.create("A");
 
     SECTION("Signers")
     {
@@ -55,18 +55,11 @@ TEST_CASE("set options", "[tx][setoptions]")
         th.medThreshold = make_optional<uint8_t>(10);
         th.highThreshold = make_optional<uint8_t>(100);
 
-        SECTION("insufficient balance")
-        {
-            REQUIRE_THROWS_AS(
-                a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr),
-                ex_SET_OPTIONS_LOW_RESERVE);
-        }
-
         SECTION("can't use master key as alternate signer")
         {
             Signer sk(KeyUtils::convertKey<SignerKey>(a1.getPublicKey()), 100);
             REQUIRE_THROWS_AS(
-                a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk, nullptr),
+                a1.setOptions(nullptr, nullptr, nullptr, &sk, nullptr),
                 ex_SET_OPTIONS_BAD_SIGNER);
         }
 
@@ -74,10 +67,7 @@ TEST_CASE("set options", "[tx][setoptions]")
         {
             app.getLedgerManager().setCurrentLedgerVersion(2);
 
-            // add some funds
-            root.pay(a1, app.getLedgerManager().getMinBalance(2));
-
-            a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr);
+            a1.setOptions(nullptr, nullptr, &th, &sk1, nullptr);
 
             AccountFrame::pointer a1Account;
 
@@ -93,7 +83,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             // add signer 2
             SecretKey s2 = getAccount("S2");
             Signer sk2(KeyUtils::convertKey<SignerKey>(s2.getPublicKey()), 100);
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
+            a1.setOptions(nullptr, nullptr, nullptr, &sk2, nullptr);
 
             a1Account = loadAccount(a1, app);
             REQUIRE(a1Account->getAccount().numSubEntries == 2);
@@ -103,7 +93,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             SignerKey s3;
             s3.type(SIGNER_KEY_TYPE_PRE_AUTH_TX);
             Signer sk3(s3, 100);
-            REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr, nullptr,
+            REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr,
                                             &sk3, nullptr),
                               ex_SET_OPTIONS_BAD_SIGNER);
 
@@ -113,15 +103,15 @@ TEST_CASE("set options", "[tx][setoptions]")
 
             // update signer 2
             sk2.weight = 11;
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
+            a1.setOptions(nullptr, nullptr, nullptr, &sk2, nullptr);
 
             // update signer 1
             sk1.weight = 11;
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1, nullptr);
+            a1.setOptions(nullptr, nullptr, nullptr, &sk1, nullptr);
 
             // remove signer 1
             sk1.weight = 0;
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1, nullptr);
+            a1.setOptions(nullptr, nullptr, nullptr, &sk1, nullptr);
 
             a1Account = loadAccount(a1, app);
             REQUIRE(a1Account->getAccount().numSubEntries == 1);
@@ -132,7 +122,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
             // remove signer 3 - non account, not added, because of old ledger
             sk3.weight = 0;
-            REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr, nullptr,
+            REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr,
                                             &sk3, nullptr),
                               ex_SET_OPTIONS_BAD_SIGNER);
 
@@ -142,7 +132,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
             // remove signer 2
             sk2.weight = 0;
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
+            a1.setOptions(nullptr, nullptr, nullptr, &sk2, nullptr);
 
             a1Account = loadAccount(a1, app);
             REQUIRE(a1Account->getAccount().numSubEntries == 0);
@@ -153,9 +143,7 @@ TEST_CASE("set options", "[tx][setoptions]")
         {
             app.getLedgerManager().setCurrentLedgerVersion(3);
 
-            // add some funds
-            root.pay(a1, app.getLedgerManager().getMinBalance(2));
-            a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr);
+            a1.setOptions(nullptr, nullptr, &th, &sk1, nullptr);
 
             AccountFrame::pointer a1Account;
 
@@ -171,7 +159,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             // add signer 2
             SecretKey s2 = getAccount("S2");
             Signer sk2(KeyUtils::convertKey<SignerKey>(s2.getPublicKey()), 100);
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
+            a1.setOptions(nullptr, nullptr, nullptr, &sk2, nullptr);
 
             a1Account = loadAccount(a1, app);
             REQUIRE(a1Account->getAccount().numSubEntries == 2);
@@ -181,7 +169,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             SignerKey s3;
             s3.type(SIGNER_KEY_TYPE_PRE_AUTH_TX);
             Signer sk3(s3, 100);
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk3, nullptr);
+            a1.setOptions(nullptr, nullptr, nullptr, &sk3, nullptr);
 
             a1Account = loadAccount(a1, app);
             REQUIRE(a1Account->getAccount().numSubEntries == 3);
@@ -189,15 +177,15 @@ TEST_CASE("set options", "[tx][setoptions]")
 
             // update signer 2
             sk2.weight = 11;
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
+            a1.setOptions(nullptr, nullptr, nullptr, &sk2, nullptr);
 
             // update signer 1
             sk1.weight = 11;
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1, nullptr);
+            a1.setOptions(nullptr, nullptr, nullptr, &sk1, nullptr);
 
             // remove signer 1
             sk1.weight = 0;
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1, nullptr);
+            a1.setOptions(nullptr, nullptr, nullptr, &sk1, nullptr);
 
             a1Account = loadAccount(a1, app);
             REQUIRE(a1Account->getAccount().numSubEntries == 2);
@@ -208,7 +196,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
             // remove signer 3 - non account
             sk3.weight = 0;
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk3, nullptr);
+            a1.setOptions(nullptr, nullptr, nullptr, &sk3, nullptr);
 
             a1Account = loadAccount(a1, app);
             REQUIRE(a1Account->getAccount().numSubEntries == 1);
@@ -216,7 +204,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
             // remove signer 2
             sk2.weight = 0;
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
+            a1.setOptions(nullptr, nullptr, nullptr, &sk2, nullptr);
 
             a1Account = loadAccount(a1, app);
             REQUIRE(a1Account->getAccount().numSubEntries == 0);
@@ -230,7 +218,7 @@ TEST_CASE("set options", "[tx][setoptions]")
         {
             uint32_t setFlags = AUTH_REQUIRED_FLAG;
             uint32_t clearFlags = AUTH_REQUIRED_FLAG;
-            REQUIRE_THROWS_AS(a1.setOptions(nullptr, &setFlags, &clearFlags,
+            REQUIRE_THROWS_AS(a1.setOptions(&setFlags, &clearFlags,
                                             nullptr, nullptr, nullptr),
                               ex_SET_OPTIONS_BAD_FLAGS);
         }
@@ -239,30 +227,30 @@ TEST_CASE("set options", "[tx][setoptions]")
             uint32_t flags;
 
             flags = AUTH_REQUIRED_FLAG;
-            a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr, nullptr);
+            a1.setOptions(&flags, nullptr, nullptr, nullptr, nullptr);
 
             flags = AUTH_REVOCABLE_FLAG;
-            a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr, nullptr);
+            a1.setOptions(&flags, nullptr, nullptr, nullptr, nullptr);
 
             // clear flag
-            a1.setOptions(nullptr, nullptr, &flags, nullptr, nullptr, nullptr);
+            a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr);
 
             flags = AUTH_IMMUTABLE_FLAG;
-            a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr, nullptr);
+            a1.setOptions(&flags, nullptr, nullptr, nullptr, nullptr);
 
             // at this point trying to change any flag should fail
 
-            REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, &flags, nullptr,
+            REQUIRE_THROWS_AS(a1.setOptions(nullptr, &flags, nullptr,
                                             nullptr, nullptr),
                               ex_SET_OPTIONS_CANT_CHANGE);
 
             flags = AUTH_REQUIRED_FLAG;
-            REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, &flags, nullptr,
+            REQUIRE_THROWS_AS(a1.setOptions(nullptr, &flags, nullptr,
                                             nullptr, nullptr),
                               ex_SET_OPTIONS_CANT_CHANGE);
 
             flags = AUTH_REVOCABLE_FLAG;
-            REQUIRE_THROWS_AS(a1.setOptions(nullptr, &flags, nullptr, nullptr,
+            REQUIRE_THROWS_AS(a1.setOptions(&flags, nullptr, nullptr,
                                             nullptr, nullptr),
                               ex_SET_OPTIONS_CANT_CHANGE);
         }
@@ -275,7 +263,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             std::string bad[] = {"abc\r", "abc\x7F", std::string("ab\000c", 4)};
             for (auto& s : bad)
             {
-                REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr,
+                REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr,
                                                 nullptr, nullptr, &s),
                                   ex_SET_OPTIONS_INVALID_HOME_DOMAIN);
             }

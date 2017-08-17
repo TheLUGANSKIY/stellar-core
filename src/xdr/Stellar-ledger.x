@@ -45,16 +45,7 @@ struct LedgerHeader
 
     uint32 ledgerSeq; // sequence number of this ledger
 
-    int64 totalCoins; // total number of stroops in existence.
-                      // 10,000,000 stroops in 1 XLM
-
-    int64 feePool;       // fees burned since last inflation run
-    uint32 inflationSeq; // inflation sequence number
-
     uint64 idPool; // last used global ID, used for generating objects
-
-    uint32 baseFee;     // base fee per operation in stroops
-    uint32 baseReserve; // account base reserve in stroops
 
     uint32 maxTxSetSize; // maximum size a transaction set can be
 
@@ -81,16 +72,13 @@ in ascending order
 enum LedgerUpgradeType
 {
     LEDGER_UPGRADE_VERSION = 1,
-    LEDGER_UPGRADE_BASE_FEE = 2,
-    LEDGER_UPGRADE_MAX_TX_SET_SIZE = 3
+    LEDGER_UPGRADE_MAX_TX_SET_SIZE = 2
 };
 
 union LedgerUpgrade switch (LedgerUpgradeType type)
 {
 case LEDGER_UPGRADE_VERSION:
     uint32 newLedgerVersion; // update ledgerVersion
-case LEDGER_UPGRADE_BASE_FEE:
-    uint32 newBaseFee; // update baseFee
 case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
     uint32 newMaxTxSetSize; // update maxTxSetSize
 };

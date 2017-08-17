@@ -64,13 +64,7 @@ signerEqual(Signer const& s1, Signer const& s2)
 void
 makeValid(AccountEntry& a)
 {
-    if (a.balance < 0)
-    {
-        a.balance = -a.balance;
-    }
-
     stripControlCharacters(a.homeDomain);
-    a.inflationDest.activate() = PubKeyUtils::random();
 
     std::sort(a.signers.begin(), a.signers.end(), &AccountFrame::signerCompare);
     a.signers.erase(

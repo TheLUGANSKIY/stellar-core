@@ -156,7 +156,7 @@ TrustFrame::getMaxAmountReceive() const
 bool
 TrustFrame::isValid(TrustLineEntry const& tl)
 {
-    bool res = tl.asset.type() != ASSET_TYPE_NATIVE;
+    bool res = true;
     res = res && isAssetValid(tl.asset);
     res = res && (tl.balance >= 0);
     res = res && (tl.limit > 0);
@@ -342,18 +342,11 @@ TrustFrame::pointer
 TrustFrame::loadTrustLine(AccountID const& accountID, Asset const& asset,
                           Database& db, LedgerDelta* delta)
 {
-    if (asset.type() == ASSET_TYPE_NATIVE)
+    if (accountID == getIssuer(asset))
     {
-        throw std::runtime_error("XLM TrustLine?");
+        return createIssuerFrame(asset);
     }
-    else
-    {
-        if (accountID == getIssuer(asset))
-        {
-            return createIssuerFrame(asset);
-        }
-    }
-
+    
     LedgerKey key;
     key.type(TRUSTLINE);
     key.trustLine().accountID = accountID;

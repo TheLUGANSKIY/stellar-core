@@ -21,24 +21,17 @@ TestAccount::createRoot(Application& app)
 }
 
 TestAccount
-TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
+TestAccount::create(SecretKey const& secretKey)
 {
-    applyCreateAccountTx(mApp, getSecretKey(), secretKey, nextSequenceNumber(),
-                         initialBalance);
+    applyCreateAccountTx(mApp, getSecretKey(), secretKey, nextSequenceNumber());
     auto sequenceNumber = getAccountSeqNum(secretKey, mApp);
     return TestAccount{mApp, secretKey, sequenceNumber};
 }
 
 TestAccount
-TestAccount::create(std::string const& name, uint64_t initialBalance)
+TestAccount::create(std::string const& name)
 {
-    return create(getAccount(name.c_str()), initialBalance);
-}
-
-void
-TestAccount::merge(PublicKey const& into)
-{
-    applyAccountMerge(mApp, getSecretKey(), into, nextSequenceNumber());
+    return create(getAccount(name.c_str()));
 }
 
 void
@@ -69,11 +62,11 @@ TestAccount::denyTrust(Asset const& asset, PublicKey const& trustor)
 }
 
 void
-TestAccount::setOptions(AccountID* inflationDest, uint32_t* setFlags,
+TestAccount::setOptions(uint32_t* setFlags,
                         uint32_t* clearFlags, ThresholdSetter* thrs,
                         Signer* signer, std::string* homeDomain)
 {
-    applySetOptions(mApp, getSecretKey(), nextSequenceNumber(), inflationDest,
+    applySetOptions(mApp, getSecretKey(), nextSequenceNumber(),
                     setFlags, clearFlags, thrs, signer, homeDomain);
 }
 
@@ -113,13 +106,6 @@ TestAccount::createPassiveOffer(Asset const& selling, Asset const& buying,
     return applyCreatePassiveOffer(mApp, getSecretKey(), selling, buying, price,
                                    amount, nextSequenceNumber(),
                                    expectedEffect);
-}
-
-void
-TestAccount::pay(SecretKey const& destination, int64_t amount)
-{
-    applyPaymentTx(mApp, getSecretKey(), destination, nextSequenceNumber(),
-                   amount);
 }
 
 void

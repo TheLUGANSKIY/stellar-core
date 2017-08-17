@@ -31,8 +31,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
     // set up world
     auto root = TestAccount::createRoot(app);
-    auto const minBalance2 = app.getLedgerManager().getMinBalance(2);
-    auto gateway = root.create("gw", minBalance2);
+    auto gateway = root.create("gw");
     Asset idrCur = makeAsset(gateway, "IDR");
 
     SECTION("basic tests")
@@ -76,8 +75,6 @@ TEST_CASE("change trust", "[tx][changetrust]")
         SECTION("edit existing")
         {
             root.changeTrust(idrCur, 100);
-            // Merge gateway back into root (the trustline still exists)
-            gateway.merge(root);
 
             REQUIRE_THROWS_AS(root.changeTrust(idrCur, 99),
                               ex_CHANGE_TRUST_NO_ISSUER);
@@ -115,9 +112,6 @@ TEST_CASE("change trust", "[tx][changetrust]")
             gateway.pay(gateway, idrCur, 50);
             validateTrustLineIsConst();
             auto gatewayAccountAfter = loadAccount(gateway, app);
-            REQUIRE(gatewayAccountAfter->getBalance() ==
-                    (gatewayAccountBefore->getBalance() -
-                     app.getLedgerManager().getTxFee()));
 
             // lower the limit will fail, because it is still INT64_MAX
             REQUIRE_THROWS_AS(gateway.changeTrust(idrCur, 50),
@@ -158,9 +152,6 @@ TEST_CASE("change trust", "[tx][changetrust]")
             gateway.pay(gateway, idrCur, 50);
             validateTrustLineIsConst();
             auto gatewayAccountAfter = loadAccount(gateway, app);
-            REQUIRE(gatewayAccountAfter->getBalance() ==
-                    (gatewayAccountBefore->getBalance() -
-                     app.getLedgerManager().getTxFee()));
 
             // lower the limit will fail, because it is still INT64_MAX
             REQUIRE_THROWS_AS(gateway.changeTrust(idrCur, 50),
