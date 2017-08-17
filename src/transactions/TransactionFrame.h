@@ -136,12 +136,6 @@ class TransactionFrame
         return mEnvelope.tx.sourceAccount;
     }
 
-    int64_t getFee() const;
-
-    int64_t getMinFee(LedgerManager const& lm) const;
-
-    double getFeeRatio(LedgerManager const& lm) const;
-
     void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);
 
@@ -151,7 +145,7 @@ class TransactionFrame
     bool checkValid(Application& app, SequenceNumber current);
 
     // collect fee, consume sequence number
-    void processFeeSeqNum(LedgerDelta& delta, LedgerManager& ledgerManager);
+    void processSeqNum(LedgerDelta& delta, LedgerManager& ledgerManager);
 
     // apply this transaction to the current ledger
     // returns true if successfully applied
@@ -169,17 +163,9 @@ class TransactionFrame
     void storeTransaction(LedgerManager& ledgerManager, TransactionMeta& tm,
                           int txindex, TransactionResultSet& resultSet) const;
 
-    // fee history
-    void storeTransactionFee(LedgerManager& ledgerManager,
-                             LedgerEntryChanges const& changes,
-                             int txindex) const;
-
     // access to history tables
     static TransactionResultSet getTransactionHistoryResults(Database& db,
                                                              uint32 ledgerSeq);
-    static std::vector<LedgerEntryChanges>
-    getTransactionFeeMeta(Database& db, uint32 ledgerSeq);
-
     /*
     txOut: stream of TransactionHistoryEntry
     txResultOut: stream of TransactionHistoryResultEntry

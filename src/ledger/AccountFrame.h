@@ -62,15 +62,6 @@ class AccountFrame : public EntryFrame
         mUpdateSigners = true;
     }
 
-    // actual balance for the account
-    int64_t getBalance() const;
-
-    // reserve balance that the account must always hold
-    int64_t getMinimumBalance(LedgerManager const& lm) const;
-
-    // balance that can be spent (above the limit)
-    int64_t getBalanceAboveReserve(LedgerManager const& lm) const;
-
     // returns true if successfully updated,
     // false if balance is not sufficient
     bool addNumEntries(int count, LedgerManager const& lm);

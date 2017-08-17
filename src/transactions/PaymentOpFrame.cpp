@@ -32,22 +32,6 @@ bool
 PaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
                         LedgerManager& ledgerManager)
 {
-    // if sending to self XLM directly, just mark as success, else we need at
-    // least to check trustlines
-    // in ledger version 2 it would work for any asset type
-    auto instantSuccess = app.getLedgerManager().getCurrentLedgerVersion() > 2
-                              ? mPayment.destination == getSourceID() &&
-                                    mPayment.asset.type() == ASSET_TYPE_NATIVE
-                              : mPayment.destination == getSourceID();
-    if (instantSuccess)
-    {
-        app.getMetrics()
-            .NewMeter({"op-payment", "success", "apply"}, "operation")
-            .Mark();
-        innerResult().code(PAYMENT_SUCCESS);
-        return true;
-    }
-
     // build a pathPaymentOp
     Operation op;
     op.sourceAccount = mOperation.sourceAccount;

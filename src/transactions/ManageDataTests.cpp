@@ -38,9 +38,7 @@ TEST_CASE("manage data", "[tx][managedata]")
     // set up world
     auto root = TestAccount::createRoot(app);
 
-    const int64_t minBalance = app.getLedgerManager().getMinBalance(3) - 100;
-
-    auto gateway = root.create("gw", minBalance);
+    auto gateway = root.create("gw");
 
     DataValue value, value2;
     value.resize(64);

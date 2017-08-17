@@ -240,12 +240,6 @@
     <ClCompile Include="..\..\src\transactions\TransactionFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\InflationOpFrame.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\MergeOpFrame.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\transactions\PaymentOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
@@ -274,12 +268,6 @@
       <Filter>transactions\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\PaymentTests.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\MergeTests.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\InflationTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\SetOptionsTests.cpp">
@@ -591,6 +579,9 @@
     <ClCompile Include="..\..\src\transactions\SignatureUtilsTest.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\herder\HerderUtils.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -708,12 +699,6 @@
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\TransactionFrame.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\InflationOpFrame.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\MergeOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\PaymentOpFrame.h">

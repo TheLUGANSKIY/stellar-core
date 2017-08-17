@@ -61,7 +61,7 @@ TEST_CASE("single ledger entry insert SQL", "[singlesql][entrysql]")
     le->storeAddOrChange(delta, db);
 }
 
-TEST_CASE("DB cache interaction with transactions", "[ledger][dbcache]")
+TEST_CASE("DB cache interaction with transactions", "[ledger][dbcache]") // Maybe it's better to remove
 {
     Config::TestDbMode mode = Config::TESTDB_ON_DISK_SQLITE;
 #ifdef USE_POSTGRES
@@ -96,8 +96,6 @@ TEST_CASE("DB cache interaction with transactions", "[ledger][dbcache]")
     // The write should have removed it from the cache.
     REQUIRE(!EntryFrame::cachedEntryExists(key, db));
 
-    int64_t balance0, balance1;
-
     {
         soci::transaction sqltx(session);
         LedgerDelta delta(app->getLedgerManager().getCurrentLedgerHeader(),
@@ -106,10 +104,6 @@ TEST_CASE("DB cache interaction with transactions", "[ledger][dbcache]")
         auto acc = AccountFrame::loadAccount(key.account().accountID, db);
         REQUIRE(EntryFrame::cachedEntryExists(key, db));
 
-        balance0 = acc->getAccount().balance;
-        acc->getAccount().balance += 1;
-        balance1 = acc->getAccount().balance;
-
         acc->storeChange(delta, db);
         // Write should flush cache, put balance1 in DB _pending commit_.
         REQUIRE(!EntryFrame::cachedEntryExists(key, db));
@@ -117,12 +111,6 @@ TEST_CASE("DB cache interaction with transactions", "[ledger][dbcache]")
         acc = AccountFrame::loadAccount(key.account().accountID, db);
         // Read should have populated cache.
         REQUIRE(EntryFrame::cachedEntryExists(key, db));
-
-        // Read-back value should be balance1
-        REQUIRE(acc->getAccount().balance == balance1);
-
-        LOG(INFO) << "balance0: " << balance0;
-        LOG(INFO) << "balance1: " << balance1;
 
         // Scope-end will rollback sqltx and delta
     }
@@ -133,7 +121,4 @@ TEST_CASE("DB cache interaction with transactions", "[ledger][dbcache]")
     auto acc = AccountFrame::loadAccount(key.account().accountID, db);
     // Read should populate cache
     CHECK(EntryFrame::cachedEntryExists(key, db));
-    LOG(INFO) << "cached balance: " << acc->getAccount().balance;
-
-    CHECK(balance0 == acc->getAccount().balance);
 }

@@ -18,11 +18,6 @@ namespace
 int64_t
 canBuyAtMost(const Asset& asset, TrustFrame::pointer trustLine, Price& price)
 {
-    if (asset.type() == ASSET_TYPE_NATIVE)
-    {
-        return INT64_MAX;
-    }
-
     // compute value based on what the account can receive
     auto sellerMaxSheep = trustLine ? trustLine->getMaxAmountReceive() : 0;
 
@@ -39,12 +34,6 @@ int64_t
 canSellAtMost(AccountFrame::pointer account, const Asset& asset,
               TrustFrame::pointer trustLine, LedgerManager& ledgerManager)
 {
-    if (asset.type() == ASSET_TYPE_NATIVE)
-    {
-        // can only send above the minimum balance
-        return account->getBalanceAboveReserve(ledgerManager);
-    }
-
     if (trustLine && trustLine->isAuthorized())
     {
         return trustLine->getBalance();
@@ -138,14 +127,14 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     }
 
     TrustFrame::pointer wheatLineAccountB;
-    if (wheat.type() != ASSET_TYPE_NATIVE)
+    if (true)
     {
         wheatLineAccountB =
             TrustFrame::loadTrustLine(accountBID, wheat, db, &mDelta);
     }
 
     TrustFrame::pointer sheepLineAccountB;
-    if (sheep.type() != ASSET_TYPE_NATIVE)
+    if (true)
     {
         sheepLineAccountB =
             TrustFrame::loadTrustLine(accountBID, sheep, db, &mDelta);
@@ -200,37 +189,21 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
 
     // Adjust balances
     if (numSheepSend != 0)
-    {
-        if (sheep.type() == ASSET_TYPE_NATIVE)
+    { 
+        if (!sheepLineAccountB->addBalance(numSheepSend))
         {
-            accountB->getAccount().balance += numSheepSend;
-            accountB->storeChange(mDelta, db);
+            return eOfferCantConvert;
         }
-        else
-        {
-            if (!sheepLineAccountB->addBalance(numSheepSend))
-            {
-                return eOfferCantConvert;
-            }
-            sheepLineAccountB->storeChange(mDelta, db);
-        }
+        sheepLineAccountB->storeChange(mDelta, db);
     }
 
     if (numWheatReceived != 0)
     {
-        if (wheat.type() == ASSET_TYPE_NATIVE)
+        if (!wheatLineAccountB->addBalance(-numWheatReceived))
         {
-            accountB->getAccount().balance -= numWheatReceived;
-            accountB->storeChange(mDelta, db);
+            return eOfferCantConvert;
         }
-        else
-        {
-            if (!wheatLineAccountB->addBalance(-numWheatReceived))
-            {
-                return eOfferCantConvert;
-            }
-            wheatLineAccountB->storeChange(mDelta, db);
-        }
+        wheatLineAccountB->storeChange(mDelta, db);
     }
 
     mOfferTrail.push_back(

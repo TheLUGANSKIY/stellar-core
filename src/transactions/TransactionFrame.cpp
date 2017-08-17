@@ -97,31 +97,6 @@ TransactionFrame::getEnvelope()
     return mEnvelope;
 }
 
-double
-TransactionFrame::getFeeRatio(LedgerManager const& lm) const
-{
-    return ((double)getFee() / (double)getMinFee(lm));
-}
-
-int64_t
-TransactionFrame::getFee() const
-{
-    return mEnvelope.tx.fee;
-}
-
-int64_t
-TransactionFrame::getMinFee(LedgerManager const& lm) const
-{
-    size_t count = mOperations.size();
-
-    if (count == 0)
-    {
-        count = 1;
-    }
-
-    return lm.getTxFee() * count;
-}
-
 void
 TransactionFrame::addSignature(SecretKey const& secretKey)
 {
@@ -197,10 +172,6 @@ TransactionFrame::resetResults()
             OperationFrame::makeHelper(mEnvelope.tx.operations[i],
                                        getResult().result.results()[i], *this));
     }
-
-    // feeCharged is updated accordingly to represent the cost of the
-    // transaction regardless of the failure modes.
-    getResult().feeCharged = getFee();
 }
 
 bool
@@ -244,16 +215,6 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         }
     }
 
-    if (mEnvelope.tx.fee < getMinFee(lm))
-    {
-        app.getMetrics()
-            .NewMeter({"transaction", "invalid", "insufficient-fee"},
-                      "transaction")
-            .Mark();
-        getResult().result.code(txINSUFFICIENT_FEE);
-        return false;
-    }
-
     if (!loadAccount(delta, app.getDatabase()))
     {
         app.getMetrics()
@@ -263,7 +224,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         return false;
     }
 
-    // when applying, the account's sequence number is updated when taking fees
+    // when applying, the account's sequence number is updated
     if (!applying)
     {
         if (current == 0)
@@ -291,23 +252,11 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         return false;
     }
 
-    // don't let the account go below the reserve
-    if (mSigningAccount->getAccount().balance - mEnvelope.tx.fee <
-        mSigningAccount->getMinimumBalance(app.getLedgerManager()))
-    {
-        app.getMetrics()
-            .NewMeter({"transaction", "invalid", "insufficient-balance"},
-                      "transaction")
-            .Mark();
-        getResult().result.code(txINSUFFICIENT_BALANCE);
-        return false;
-    }
-
     return true;
 }
 
 void
-TransactionFrame::processFeeSeqNum(LedgerDelta& delta,
+TransactionFrame::processSeqNum(LedgerDelta& delta,
                                    LedgerManager& ledgerManager)
 {
     resetSigningAccount();
@@ -319,19 +268,7 @@ TransactionFrame::processFeeSeqNum(LedgerDelta& delta,
     }
 
     Database& db = ledgerManager.getDatabase();
-    int64_t& fee = getResult().feeCharged;
 
-    if (fee > 0)
-    {
-        int64_t avail = mSigningAccount->getAccount().balance;
-        if (avail < fee)
-        {
-            // take all their balance to be safe
-            fee = avail;
-        }
-        mSigningAccount->getAccount().balance -= fee;
-        delta.getHeader().feePool += fee;
-    }
     if (mSigningAccount->getSeqNum() + 1 != mEnvelope.tx.seqNum)
     {
         // this should not happen as the transaction set is sanitized for
@@ -605,41 +542,6 @@ TransactionFrame::storeTransaction(LedgerManager& ledgerManager,
     }
 }
 
-void
-TransactionFrame::storeTransactionFee(LedgerManager& ledgerManager,
-                                      LedgerEntryChanges const& changes,
-                                      int txindex) const
-{
-    xdr::opaque_vec<> txChanges(xdr::xdr_to_opaque(changes));
-
-    std::string txChanges64;
-    txChanges64 = bn::encode_b64(txChanges);
-
-    string txIDString(binToHex(getContentsHash()));
-
-    auto& db = ledgerManager.getDatabase();
-    auto prep = db.getPreparedStatement(
-        "INSERT INTO txfeehistory "
-        "( txid, ledgerseq, txindex,  txchanges) VALUES "
-        "(:id,  :seq,      :txindex, :txchanges)");
-
-    auto& st = prep.statement();
-    st.exchange(soci::use(txIDString));
-    st.exchange(soci::use(ledgerManager.getCurrentLedgerHeader().ledgerSeq));
-    st.exchange(soci::use(txindex));
-    st.exchange(soci::use(txChanges64));
-    st.define_and_bind();
-    {
-        auto timer = db.getInsertTimer("txfeehistory");
-        st.execute(true);
-    }
-
-    if (st.get_affected_rows() != 1)
-    {
-        throw std::runtime_error("Could not update data in SQL");
-    }
-}
-
 static void
 saveTransactionHelper(Database& db, soci::session& sess, uint32 ledgerSeq,
                       TxSetFrame& txSet, TransactionHistoryResultEntry& results,
@@ -687,34 +589,6 @@ TransactionFrame::getTransactionHistoryResults(Database& db, uint32 ledgerSeq)
 
         xdr::xdr_get g(&result.front(), &result.back() + 1);
         xdr_argpack_archive(g, p);
-
-        st.fetch();
-    }
-    return res;
-}
-
-std::vector<LedgerEntryChanges>
-TransactionFrame::getTransactionFeeMeta(Database& db, uint32 ledgerSeq)
-{
-    std::vector<LedgerEntryChanges> res;
-    std::string changes64;
-    auto prep =
-        db.getPreparedStatement("SELECT txchanges FROM txfeehistory "
-                                "WHERE ledgerseq = :lseq ORDER BY txindex ASC");
-    auto& st = prep.statement();
-
-    st.exchange(soci::into(changes64));
-    st.exchange(soci::use(ledgerSeq));
-    st.define_and_bind();
-    st.execute(true);
-    while (st.got_data())
-    {
-        std::vector<uint8_t> changesRaw;
-        bn::decode_b64(changes64, changesRaw);
-
-        xdr::xdr_get g1(&changesRaw.front(), &changesRaw.back() + 1);
-        res.emplace_back();
-        xdr_argpack_archive(g1, res.back());
 
         st.fetch();
     }
@@ -807,8 +681,6 @@ TransactionFrame::dropAll(Database& db)
 {
     db.getSession() << "DROP TABLE IF EXISTS txhistory";
 
-    db.getSession() << "DROP TABLE IF EXISTS txfeehistory";
-
     db.getSession() << "CREATE TABLE txhistory ("
                        "txid        CHARACTER(64) NOT NULL,"
                        "ledgerseq   INT NOT NULL CHECK (ledgerseq >= 0),"
@@ -819,22 +691,11 @@ TransactionFrame::dropAll(Database& db)
                        "PRIMARY KEY (ledgerseq, txindex)"
                        ")";
     db.getSession() << "CREATE INDEX histbyseq ON txhistory (ledgerseq);";
-
-    db.getSession() << "CREATE TABLE txfeehistory ("
-                       "txid        CHARACTER(64) NOT NULL,"
-                       "ledgerseq   INT NOT NULL CHECK (ledgerseq >= 0),"
-                       "txindex     INT NOT NULL,"
-                       "txchanges   TEXT NOT NULL,"
-                       "PRIMARY KEY (ledgerseq, txindex)"
-                       ")";
-    db.getSession() << "CREATE INDEX histfeebyseq ON txfeehistory (ledgerseq);";
 }
 
 void
 TransactionFrame::deleteOldEntries(Database& db, uint32_t ledgerSeq)
 {
     db.getSession() << "DELETE FROM txhistory WHERE ledgerseq <= " << ledgerSeq;
-    db.getSession() << "DELETE FROM txfeehistory WHERE ledgerseq <= "
-                    << ledgerSeq;
 }
 }

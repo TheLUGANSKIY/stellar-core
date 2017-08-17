@@ -154,7 +154,6 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
         {
             root["name"] = accName->second;
             root["id"] = KeyUtils::toStrKey(acc->getID());
-            root["balance"] = (Json::Int64)acc->getBalance();
             root["seqnum"] = (Json::UInt64)acc->getSeqNum();
         }
     }
@@ -213,13 +212,7 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         TransactionFramePtr txFrame;
         if (create != retMap.end() && create->second == "true")
         {
-            txFrame = createCreateAccountTx(networkID, fromKey, toKey, fromSeq,
-                                            paymentAmount);
-        }
-        else
-        {
-            txFrame = createPaymentTx(networkID, fromKey, toKey, fromSeq,
-                                      paymentAmount);
+            txFrame = createCreateAccountTx(networkID, fromKey, toKey, fromSeq);
         }
 
         switch (mApp.getHerder().recvTransaction(txFrame))

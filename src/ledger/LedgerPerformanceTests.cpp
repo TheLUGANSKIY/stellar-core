@@ -77,11 +77,8 @@ class LedgerPerformanceTests : public Simulation
         txs.push_back(ensureAccountIsLoadedCreated(from->mId));
         txs.push_back(ensureAccountIsLoadedCreated(to->mId));
 
-        int64_t amount = static_cast<int64_t>(
-            rand_fraction() * min(static_cast<int64_t>(1000),
-                                  (from->mBalance - mMinBalance) / 3));
-        txs.push_back(make_optional<TxInfo>(
-            createTransferNativeTransaction(from, to, amount)));
+        /*txs.push_back(make_optional<TxInfo>(
+            createTransferNativeTransaction(from, to, amount)));*/
 
         vector<TxInfo> result;
         for (auto tx : txs)
@@ -122,7 +119,6 @@ class LedgerPerformanceTests : public Simulation
     void
     closeLedger(vector<Simulation::TxInfo> txs)
     {
-        auto baseFee = mApp->getConfig().DESIRED_BASE_FEE;
         LoadGenerator::TxMetrics txm(mApp->getMetrics());
         TxSetFramePtr txSet = make_shared<TxSetFrame>(
             mApp->getLedgerManager().getLastClosedLedgerHeader().hash);
@@ -132,7 +128,7 @@ class LedgerPerformanceTests : public Simulation
             tx.toTransactionFrames(mApp->getNetworkID(), txfs, txm);
             for (auto f : txfs)
                 txSet->add(f);
-            tx.recordExecution(baseFee);
+            tx.recordExecution();
         }
 
         StellarValue sv(txSet->getContentsHash(),

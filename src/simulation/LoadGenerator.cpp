@@ -53,13 +53,12 @@ static const uint64_t LOADGEN_TRUSTLINE_LIMIT = 1000 * LOADGEN_ACCOUNT_BALANCE;
 const uint32_t LoadGenerator::STEP_MSECS = 100;
 
 LoadGenerator::LoadGenerator(Hash const& networkID)
-    : mMinBalance(0), mLastSecond(0)
+    : mLastSecond(0)
 {
     // Root account gets enough XLM to create 10 million (10^7) accounts, which
     // thereby uses up 7 + 3 + 7 = 17 decimal digits. Luckily we have 2^63 =
     // 9.2*10^18, so there's room even in 62bits to do this.
     auto root = make_shared<AccountInfo>(0, txtest::getRoot(networkID),
-                                         10000000ULL * LOADGEN_ACCOUNT_BALANCE,
                                          0, 0, *this);
     mAccounts.push_back(root);
 }
@@ -231,8 +230,6 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
 {
     soci::transaction sqltx(app.getDatabase().getSession());
     app.getDatabase().setCurrentTransactionReadOnly();
-
-    updateMinBalance(app);
 
     if (txRate == 0)
     {
@@ -458,22 +455,12 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
     }
 }
 
-void
-LoadGenerator::updateMinBalance(Application& app)
-{
-    auto b = app.getLedgerManager().getMinBalance(0);
-    if (b > mMinBalance)
-    {
-        mMinBalance = b;
-    }
-}
-
 LoadGenerator::AccountInfoPtr
 LoadGenerator::createAccount(size_t i, uint32_t ledgerNum)
 {
     auto accountName = "Account-" + to_string(i);
     return make_shared<AccountInfo>(
-        i, txtest::getAccount(accountName.c_str()), 0,
+        i, txtest::getAccount(accountName.c_str()),
         (static_cast<SequenceNumber>(ledgerNum) << 32), ledgerNum, *this);
 }
 
@@ -512,7 +499,6 @@ LoadGenerator::loadAccount(Application& app, AccountInfo& account)
         return false;
     }
 
-    account.mBalance = ret->getBalance();
     account.mSeq = ret->getSeqNum();
     auto high =
         app.getHerder().getMaxSeqInPendingTxs(account.mKey.getPublicKey());
@@ -545,14 +531,6 @@ LoadGenerator::loadAccounts(Application& app, std::vector<AccountInfoPtr> accs)
         }
     }
     return loaded;
-}
-
-LoadGenerator::TxInfo
-LoadGenerator::createTransferNativeTransaction(AccountInfoPtr from,
-                                               AccountInfoPtr to,
-                                               int64_t amount)
-{
-    return TxInfo{from, to, TxInfo::TX_TRANSFER_NATIVE, amount};
 }
 
 LoadGenerator::TxInfo
@@ -694,10 +672,10 @@ LoadGenerator::createRandomTransaction(float alpha, uint32_t ledgerNum)
             return tx;
         }
     }
-    auto to = pickRandomAccount(from, ledgerNum);
+    /*auto to = pickRandomAccount(from, ledgerNum);
     auto tx = createTransferNativeTransaction(from, to, amount);
     tx.touchAccounts(ledgerNum);
-    return tx;
+    return tx;*/
 }
 
 vector<LoadGenerator::TxInfo>
@@ -716,12 +694,11 @@ LoadGenerator::createRandomTransactions(size_t n, float paretoAlpha)
 //////////////////////////////////////////////////////
 
 LoadGenerator::AccountInfo::AccountInfo(size_t id, SecretKey key,
-                                        int64_t balance, SequenceNumber seq,
+                                        SequenceNumber seq,
                                         uint32_t lastChangedLedger,
                                         LoadGenerator& loadGen)
     : mId(id)
     , mKey(key)
-    , mBalance(balance)
     , mSeq(seq)
     , mLastChangedLedger(lastChangedLedger)
     , mLoadGen(loadGen)
@@ -741,7 +718,6 @@ LoadGenerator::AccountInfo::createDirectly(Application& app)
     AccountFrame a(mKey.getPublicKey());
     AccountEntry& account = a.getAccount();
     auto ledger = app.getLedgerManager().getLedgerNum();
-    account.balance = LOADGEN_ACCOUNT_BALANCE;
     account.seqNum = ((SequenceNumber)ledger) << 32;
     a.touch(ledger);
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
@@ -761,10 +737,6 @@ LoadGenerator::AccountInfo::debitDirectly(Application& app, int64_t debitAmount)
     }
     AccountEntry& account = existing->getAccount();
     auto ledger = app.getLedgerManager().getLedgerNum();
-    if (account.balance >= debitAmount)
-    {
-        account.balance -= debitAmount;
-    }
     account.seqNum++;
     existing->touch(ledger);
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
@@ -808,7 +780,6 @@ LoadGenerator::TxMetrics::TxMetrics(medida::MetricsRegistry& m)
           m.NewMeter({"loadgen", "trustline", "created"}, "trustline"))
     , mOfferCreated(m.NewMeter({"loadgen", "offer", "created"}, "offer"))
     , mPayment(m.NewMeter({"loadgen", "payment", "any"}, "payment"))
-    , mNativePayment(m.NewMeter({"loadgen", "payment", "native"}, "payment"))
     , mCreditPayment(m.NewMeter({"loadgen", "payment", "credit"}, "payment"))
 
     , mOneOfferPathPayment(
@@ -838,7 +809,6 @@ LoadGenerator::TxMetrics::report()
                            << mTrustlineCreated.count() << " tl, "
                            << mOfferCreated.count() << " of, "
                            << mPayment.count() << " pa ("
-                           << mNativePayment.count() << " na, "
                            << mCreditPayment.count() << " cr, "
                            << mOneOfferPathPayment.count() << " 1p, "
                            << mTwoOfferPathPayment.count() << " 2p, "
@@ -852,7 +822,6 @@ LoadGenerator::TxMetrics::report()
                            << mTrustlineCreated.one_minute_rate() << " tl, "
                            << mOfferCreated.one_minute_rate() << " of, "
                            << mPayment.one_minute_rate() << " pa ("
-                           << mNativePayment.one_minute_rate() << " na, "
                            << mCreditPayment.one_minute_rate() << " cr, "
                            << mOneOfferPathPayment.one_minute_rate() << " 1p, "
                            << mTwoOfferPathPayment.one_minute_rate() << " 2p, "
@@ -909,7 +878,7 @@ LoadGenerator::TxInfo::execute(Application& app)
             return false;
         }
     }
-    recordExecution(app.getConfig().DESIRED_BASE_FEE);
+    recordExecution();
     return true;
 }
 
@@ -933,7 +902,6 @@ LoadGenerator::TxInfo::toTransactionFrames(
             // Add a CREATE_ACCOUNT op
             Operation createOp;
             createOp.body.type(CREATE_ACCOUNT);
-            createOp.body.createAccountOp().startingBalance = mAmount;
             createOp.body.createAccountOp().destination =
                 mTo->mKey.getPublicKey();
             e.tx.operations.push_back(createOp);
@@ -993,7 +961,6 @@ LoadGenerator::TxInfo::toTransactionFrames(
                 signingAccounts.insert(mTo);
             }
 
-            e.tx.fee = 100 * static_cast<uint32>(e.tx.operations.size());
             TransactionFramePtr res =
                 TransactionFrame::makeTransactionFromWire(networkID, e);
             for (auto a : signingAccounts)
@@ -1002,13 +969,6 @@ LoadGenerator::TxInfo::toTransactionFrames(
             }
             txs.push_back(res);
         }
-        break;
-
-    case TxInfo::TX_TRANSFER_NATIVE:
-        txm.mPayment.Mark();
-        txm.mNativePayment.Mark();
-        txs.push_back(txtest::createPaymentTx(networkID, mFrom->mKey, mTo->mKey,
-                                              mFrom->mSeq + 1, mAmount));
         break;
 
     case TxInfo::TX_TRANSFER_CREDIT:
@@ -1062,10 +1022,9 @@ LoadGenerator::TxInfo::toTransactionFrames(
 }
 
 void
-LoadGenerator::TxInfo::recordExecution(int64_t baseFee)
+LoadGenerator::TxInfo::recordExecution()
 {
     mFrom->mSeq++;
-    mFrom->mBalance -= baseFee;
     if (mFrom && mTo)
     {
         if (!mPath.empty())
@@ -1084,11 +1043,6 @@ LoadGenerator::TxInfo::recordExecution(int64_t baseFee)
                     tl.mBalance += mAmount;
                 }
             }
-        }
-        else
-        {
-            mFrom->mBalance -= mAmount;
-            mTo->mBalance += mAmount;
         }
     }
 }

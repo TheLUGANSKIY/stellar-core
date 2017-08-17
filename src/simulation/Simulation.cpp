@@ -151,7 +151,6 @@ Simulation::startAllNodes()
     for (auto const& it : mNodes)
     {
         it.second->start();
-        updateMinBalance(*it.second);
     }
 
     for (auto const& pair : mPendingConnections)
@@ -438,8 +437,7 @@ Simulation::accountsOutOfSyncWithDb()
             int64_t offset;
             if (accountFrame)
             {
-                offset = accountFrame->getBalance() -
-                         static_cast<int64_t>(account->mBalance);
+				offset = 0;
                 account->mSeq = accountFrame->getSeqNum();
             }
             else
@@ -450,8 +448,8 @@ Simulation::accountsOutOfSyncWithDb()
             {
                 LOG(DEBUG) << "On node " << iApp << ", account " << account->mId
                            << " is off by " << (offset) << "\t(has "
-                           << (accountFrame ? accountFrame->getBalance() : 0)
-                           << " should have " << account->mBalance << ")";
+                           << -1
+                           << " should have " << 0 << ")";
                 totalOffsets += abs(offset);
                 result.push_back(account);
             }

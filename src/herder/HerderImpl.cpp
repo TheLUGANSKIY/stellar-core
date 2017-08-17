@@ -307,15 +307,6 @@ HerderImpl::validateUpgradeStep(uint64 slotIndex, UpgradeType const& upgrade,
         res = (newVersion == mApp.getConfig().LEDGER_PROTOCOL_VERSION);
     }
     break;
-    case LEDGER_UPGRADE_BASE_FEE:
-    {
-        uint32 newFee = lupgrade.newBaseFee();
-        // allow fee to move within a 2x distance from the one we have in our
-        // config
-        res = (newFee >= mApp.getConfig().DESIRED_BASE_FEE * .5) &&
-              (newFee <= mApp.getConfig().DESIRED_BASE_FEE * 2);
-    }
-    break;
     case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
     {
         // allow max to be within 30% of the config value
@@ -709,13 +700,6 @@ HerderImpl::combineCandidates(uint64 slotIndex,
                             lupgrade.newLedgerVersion();
                     }
                     break;
-                case LEDGER_UPGRADE_BASE_FEE:
-                    // take the max fee
-                    if (clUpgrade.newBaseFee() < lupgrade.newBaseFee())
-                    {
-                        clUpgrade.newBaseFee() = lupgrade.newBaseFee();
-                    }
-                    break;
                 case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
                     // take the max tx set size
                     if (clUpgrade.newMaxTxSetSize() <
@@ -880,18 +864,15 @@ HerderImpl::TxMap::addTx(TransactionFramePtr tx)
     }
     mTransactions.insert(std::make_pair(h, tx));
     mMaxSeq = std::max(tx->getSeqNum(), mMaxSeq);
-    mTotalFees += tx->getFee();
 }
 
 void
 HerderImpl::TxMap::recalculate()
 {
     mMaxSeq = 0;
-    mTotalFees = 0;
     for (auto const& pair : mTransactions)
     {
         mMaxSeq = std::max(pair.second->getSeqNum(), mMaxSeq);
-        mTotalFees += pair.second->getFee();
     }
 }
 
@@ -906,7 +887,6 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
 
     // determine if we have seen this tx before and if not if it has the right
     // seq num
-    int64_t totFee = tx->getFee();
     SequenceNumber highSeq = 0;
 
     for (auto& map : mPendingTransactions)
@@ -920,19 +900,12 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
             {
                 return TX_STATUS_DUPLICATE;
             }
-            totFee += txmap->mTotalFees;
             highSeq = std::max(highSeq, txmap->mMaxSeq);
         }
     }
 
     if (!tx->checkValid(mApp, highSeq))
     {
-        return TX_STATUS_ERROR;
-    }
-
-    if (tx->getSourceAccount().getBalanceAboveReserve(mLedgerManager) < totFee)
-    {
-        tx->getResult().result.code(txINSUFFICIENT_BALANCE);
         return TX_STATUS_ERROR;
     }
 
@@ -1314,7 +1287,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     proposedSet->trimInvalid(mApp, removed);
     removeReceivedTxs(removed);
 
-    proposedSet->surgePricingFilter(mLedgerManager);
 
     if (!proposedSet->checkValid(mApp))
     {
@@ -1408,11 +1380,6 @@ HerderImpl::prepareUpgrades(const LedgerHeader& header) const
             result.back().newLedgerVersion() =
                 mApp.getConfig().LEDGER_PROTOCOL_VERSION;
         }
-    }
-    if (header.baseFee != mApp.getConfig().DESIRED_BASE_FEE)
-    {
-        result.emplace_back(LEDGER_UPGRADE_BASE_FEE);
-        result.back().newBaseFee() = mApp.getConfig().DESIRED_BASE_FEE;
     }
     if (header.maxTxSetSize != mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER)
     {

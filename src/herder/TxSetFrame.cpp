@@ -153,39 +153,6 @@ struct SurgeSorter
     }
 };
 
-void
-TxSetFrame::surgePricingFilter(LedgerManager const& lm)
-{
-    size_t max = lm.getMaxTxSetSize();
-    if (mTransactions.size() > max)
-    { // surge pricing in effect!
-        CLOG(WARNING, "Herder") << "surge pricing in effect! "
-                                << mTransactions.size();
-
-        // determine the fee ratio for each account
-        map<AccountID, double> accountFeeMap;
-        for (auto& tx : mTransactions)
-        {
-            double r = tx->getFeeRatio(lm);
-            double now = accountFeeMap[tx->getSourceID()];
-            if (now == 0)
-                accountFeeMap[tx->getSourceID()] = r;
-            else if (r < now)
-                accountFeeMap[tx->getSourceID()] = r;
-        }
-
-        // sort tx by amount of fee they have paid
-        // remove the bottom that aren't paying enough
-        std::vector<TransactionFramePtr> tempList = mTransactions;
-        std::sort(tempList.begin(), tempList.end(), SurgeSorter(accountFeeMap));
-
-        for (auto iter = tempList.begin() + max; iter != tempList.end(); iter++)
-        {
-            removeTx(*iter);
-        }
-    }
-}
-
 // TODO.3 this and checkValid share a lot of code
 void
 TxSetFrame::trimInvalid(Application& app,
@@ -210,7 +177,6 @@ TxSetFrame::trimInvalid(Application& app,
 
         TransactionFramePtr lastTx;
         SequenceNumber lastSeq = 0;
-        int64_t totFee = 0;
         for (auto& tx : item.second)
         {
             if (!tx->checkValid(app, lastSeq))
@@ -219,26 +185,22 @@ TxSetFrame::trimInvalid(Application& app,
                 removeTx(tx);
                 continue;
             }
-            totFee += tx->getFee();
 
             lastTx = tx;
             lastSeq = tx->getSeqNum();
         }
-        if (lastTx)
-        {
-            // make sure account can pay the fee for all these tx
-            int64_t newBalance =
-                lastTx->getSourceAccount().getBalance() - totFee;
-            if (newBalance < lastTx->getSourceAccount().getMinimumBalance(
-                                 app.getLedgerManager()))
-            {
-                for (auto& tx : item.second)
-                {
-                    trimmed.push_back(tx);
-                    removeTx(tx);
-                }
-            }
-        }
+        //if (lastTx)
+        //{
+        //    // make sure account can pay the fee for all these tx
+        //    if (true)
+        //    {
+        //        for (auto& tx : item.second)
+        //        {
+        //            trimmed.push_back(tx);
+        //            removeTx(tx);
+        //        }
+        //    }
+        //}
     }
 }
 
@@ -310,27 +272,23 @@ TxSetFrame::checkValid(Application& app) const
 
                 return false;
             }
-            totFee += tx->getFee();
 
             lastTx = tx;
             lastSeq = tx->getSeqNum();
         }
-        if (lastTx)
-        {
-            // make sure account can pay the fee for all these tx
-            int64_t newBalance =
-                lastTx->getSourceAccount().getBalance() - totFee;
-            if (newBalance < lastTx->getSourceAccount().getMinimumBalance(
-                                 app.getLedgerManager()))
-            {
-                CLOG(DEBUG, "Herder")
-                    << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)
-                    << " account can't pay fee"
-                    << " tx:" << xdr::xdr_to_string(lastTx->getEnvelope());
+        //if (lastTx)
+        //{
+        //    // make sure account can pay the fee for all these tx
+        //    if (true) // maybe false
+        //    {
+        //        CLOG(DEBUG, "Herder")
+        //            << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)
+        //            << " account can't pay fee"
+        //            << " tx:" << xdr::xdr_to_string(lastTx->getEnvelope());
 
-                return false;
-            }
-        }
+        //        return false;
+        //    }
+        //}
     }
     return true;
 }

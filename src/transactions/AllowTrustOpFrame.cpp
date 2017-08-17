@@ -107,15 +107,6 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
 bool
 AllowTrustOpFrame::doCheckValid(Application& app)
 {
-    if (mAllowTrust.asset.type() == ASSET_TYPE_NATIVE)
-    {
-        app.getMetrics()
-            .NewMeter({"op-allow-trust", "invalid", "malformed-non-alphanum"},
-                      "operation")
-            .Mark();
-        innerResult().code(ALLOW_TRUST_MALFORMED);
-        return false;
-    }
     Asset ci;
     ci.type(mAllowTrust.asset.type());
     if (mAllowTrust.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)

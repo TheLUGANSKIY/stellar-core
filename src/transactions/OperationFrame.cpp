@@ -11,10 +11,8 @@
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/CreateAccountOpFrame.h"
 #include "transactions/CreatePassiveOfferOpFrame.h"
-#include "transactions/InflationOpFrame.h"
 #include "transactions/ManageDataOpFrame.h"
 #include "transactions/ManageOfferOpFrame.h"
-#include "transactions/MergeOpFrame.h"
 #include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
@@ -55,10 +53,6 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return shared_ptr<OperationFrame>(new ChangeTrustOpFrame(op, res, tx));
     case ALLOW_TRUST:
         return shared_ptr<OperationFrame>(new AllowTrustOpFrame(op, res, tx));
-    case ACCOUNT_MERGE:
-        return shared_ptr<OperationFrame>(new MergeOpFrame(op, res, tx));
-    case INFLATION:
-        return shared_ptr<OperationFrame>(new InflationOpFrame(op, res, tx));
     case MANAGE_DATA:
         return shared_ptr<OperationFrame>(new ManageDataOpFrame(op, res, tx));
 

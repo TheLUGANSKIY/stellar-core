@@ -65,26 +65,8 @@ TEST_CASE("ledgerheader", "[ledger]")
         auto const& lastHash = lcl.hash;
         TxSetFramePtr txSet = make_shared<TxSetFrame>(lastHash);
 
-        REQUIRE(lcl.header.baseFee == 100);
         REQUIRE(lcl.header.maxTxSetSize == 100);
 
-        SECTION("fee")
-        {
-            StellarValue sv(txSet->getContentsHash(), 2, emptyUpgradeSteps, 0);
-            {
-                LedgerUpgrade up(LEDGER_UPGRADE_BASE_FEE);
-                up.newBaseFee() = 1000;
-                Value v(xdr::xdr_to_opaque(up));
-                sv.upgrades.emplace_back(v.begin(), v.end());
-            }
-
-            LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
-            app->getLedgerManager().closeLedger(ledgerData);
-
-            auto& newLCL = app->getLedgerManager().getLastClosedLedgerHeader();
-
-            REQUIRE(newLCL.header.baseFee == 1000);
-        }
         SECTION("max tx")
         {
             StellarValue sv(txSet->getContentsHash(), 2, emptyUpgradeSteps, 0);

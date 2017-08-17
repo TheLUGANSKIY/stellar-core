@@ -56,7 +56,7 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
     // and the destination is the issuer we don't bother
     // checking if the destination account even exist
     // so that it's always possible to send credits back to its issuer
-    bypassIssuerCheck = (curB.type() != ASSET_TYPE_NATIVE) &&
+    bypassIssuerCheck = (true) &&
                         (fullPath.size() == 1) &&
                         (mPathPayment.sendAsset == mPathPayment.destAsset) &&
                         (getIssuer(curB) == mPathPayment.destination);
@@ -79,70 +79,61 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
         }
     }
 
-    // update last balance in the chain
-    if (curB.type() == ASSET_TYPE_NATIVE)
+    TrustFrame::pointer destLine;
+
+    if (bypassIssuerCheck)
     {
-        destination->getAccount().balance += curBReceived;
-        destination->storeChange(delta, db);
+        destLine = TrustFrame::loadTrustLine(mPathPayment.destination, curB,
+                                                db, &delta);
     }
     else
     {
-        TrustFrame::pointer destLine;
-
-        if (bypassIssuerCheck)
-        {
-            destLine = TrustFrame::loadTrustLine(mPathPayment.destination, curB,
-                                                 db, &delta);
-        }
-        else
-        {
-            auto tlI = TrustFrame::loadTrustLineIssuer(mPathPayment.destination,
-                                                       curB, db, delta);
-            if (!tlI.second)
-            {
-                app.getMetrics()
-                    .NewMeter({"op-path-payment", "failure", "no-issuer"},
-                              "operation")
-                    .Mark();
-                innerResult().code(PATH_PAYMENT_NO_ISSUER);
-                innerResult().noIssuer() = curB;
-                return false;
-            }
-            destLine = tlI.first;
-        }
-
-        if (!destLine)
+        auto tlI = TrustFrame::loadTrustLineIssuer(mPathPayment.destination,
+                                                    curB, db, delta);
+        if (!tlI.second)
         {
             app.getMetrics()
-                .NewMeter({"op-path-payment", "failure", "no-trust"},
-                          "operation")
+                .NewMeter({"op-path-payment", "failure", "no-issuer"},
+                            "operation")
                 .Mark();
-            innerResult().code(PATH_PAYMENT_NO_TRUST);
+            innerResult().code(PATH_PAYMENT_NO_ISSUER);
+            innerResult().noIssuer() = curB;
             return false;
         }
-
-        if (!destLine->isAuthorized())
-        {
-            app.getMetrics()
-                .NewMeter({"op-path-payment", "failure", "not-authorized"},
-                          "operation")
-                .Mark();
-            innerResult().code(PATH_PAYMENT_NOT_AUTHORIZED);
-            return false;
-        }
-
-        if (!destLine->addBalance(curBReceived))
-        {
-            app.getMetrics()
-                .NewMeter({"op-path-payment", "failure", "line-full"},
-                          "operation")
-                .Mark();
-            innerResult().code(PATH_PAYMENT_LINE_FULL);
-            return false;
-        }
-
-        destLine->storeChange(delta, db);
+        destLine = tlI.first;
     }
+
+    if (!destLine)
+    {
+        app.getMetrics()
+            .NewMeter({"op-path-payment", "failure", "no-trust"},
+                        "operation")
+            .Mark();
+        innerResult().code(PATH_PAYMENT_NO_TRUST);
+        return false;
+    }
+
+    if (!destLine->isAuthorized())
+    {
+        app.getMetrics()
+            .NewMeter({"op-path-payment", "failure", "not-authorized"},
+                        "operation")
+            .Mark();
+        innerResult().code(PATH_PAYMENT_NOT_AUTHORIZED);
+        return false;
+    }
+
+    if (!destLine->addBalance(curBReceived))
+    {
+        app.getMetrics()
+            .NewMeter({"op-path-payment", "failure", "line-full"},
+                        "operation")
+            .Mark();
+        innerResult().code(PATH_PAYMENT_LINE_FULL);
+        return false;
+    }
+
+    destLine->storeChange(delta, db);
 
     innerResult().success().last =
         SimplePaymentResult(mPathPayment.destination, curB, curBReceived);
@@ -158,7 +149,7 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
             continue;
         }
 
-        if (curA.type() != ASSET_TYPE_NATIVE)
+        if (true)
         {
             if (!AccountFrame::loadAccount(delta, getIssuer(curA), db))
             {
@@ -239,81 +230,61 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
-    if (curB.type() == ASSET_TYPE_NATIVE)
+    TrustFrame::pointer sourceLineFrame;
+    if (bypassIssuerCheck)
     {
-        int64_t minBalance = mSourceAccount->getMinimumBalance(ledgerManager);
-
-        if ((mSourceAccount->getAccount().balance - curBSent) < minBalance)
-        { // they don't have enough to send
-            app.getMetrics()
-                .NewMeter({"op-path-payment", "failure", "underfunded"},
-                          "operation")
-                .Mark();
-            innerResult().code(PATH_PAYMENT_UNDERFUNDED);
-            return false;
-        }
-
-        mSourceAccount->getAccount().balance -= curBSent;
-        mSourceAccount->storeChange(delta, db);
+        sourceLineFrame =
+            TrustFrame::loadTrustLine(getSourceID(), curB, db, &delta);
     }
     else
     {
-        TrustFrame::pointer sourceLineFrame;
-        if (bypassIssuerCheck)
-        {
-            sourceLineFrame =
-                TrustFrame::loadTrustLine(getSourceID(), curB, db, &delta);
-        }
-        else
-        {
-            auto tlI =
-                TrustFrame::loadTrustLineIssuer(getSourceID(), curB, db, delta);
+        auto tlI =
+            TrustFrame::loadTrustLineIssuer(getSourceID(), curB, db, delta);
 
-            if (!tlI.second)
-            {
-                app.getMetrics()
-                    .NewMeter({"op-path-payment", "failure", "no-issuer"},
-                              "operation")
-                    .Mark();
-                innerResult().code(PATH_PAYMENT_NO_ISSUER);
-                innerResult().noIssuer() = curB;
-                return false;
-            }
-            sourceLineFrame = tlI.first;
-        }
-
-        if (!sourceLineFrame)
+        if (!tlI.second)
         {
             app.getMetrics()
-                .NewMeter({"op-path-payment", "failure", "src-no-trust"},
-                          "operation")
+                .NewMeter({"op-path-payment", "failure", "no-issuer"},
+                            "operation")
                 .Mark();
-            innerResult().code(PATH_PAYMENT_SRC_NO_TRUST);
+            innerResult().code(PATH_PAYMENT_NO_ISSUER);
+            innerResult().noIssuer() = curB;
             return false;
         }
-
-        if (!sourceLineFrame->isAuthorized())
-        {
-            app.getMetrics()
-                .NewMeter({"op-path-payment", "failure", "src-not-authorized"},
-                          "operation")
-                .Mark();
-            innerResult().code(PATH_PAYMENT_SRC_NOT_AUTHORIZED);
-            return false;
-        }
-
-        if (!sourceLineFrame->addBalance(-curBSent))
-        {
-            app.getMetrics()
-                .NewMeter({"op-path-payment", "failure", "underfunded"},
-                          "operation")
-                .Mark();
-            innerResult().code(PATH_PAYMENT_UNDERFUNDED);
-            return false;
-        }
-
-        sourceLineFrame->storeChange(delta, db);
+        sourceLineFrame = tlI.first;
     }
+
+    if (!sourceLineFrame)
+    {
+        app.getMetrics()
+            .NewMeter({"op-path-payment", "failure", "src-no-trust"},
+                        "operation")
+            .Mark();
+        innerResult().code(PATH_PAYMENT_SRC_NO_TRUST);
+        return false;
+    }
+
+    if (!sourceLineFrame->isAuthorized())
+    {
+        app.getMetrics()
+            .NewMeter({"op-path-payment", "failure", "src-not-authorized"},
+                        "operation")
+            .Mark();
+        innerResult().code(PATH_PAYMENT_SRC_NOT_AUTHORIZED);
+        return false;
+    }
+
+    if (!sourceLineFrame->addBalance(-curBSent))
+    {
+        app.getMetrics()
+            .NewMeter({"op-path-payment", "failure", "underfunded"},
+                        "operation")
+            .Mark();
+        innerResult().code(PATH_PAYMENT_UNDERFUNDED);
+        return false;
+    }
+
+    sourceLineFrame->storeChange(delta, db);
 
     app.getMetrics()
         .NewMeter({"op-path-payment", "success", "apply"}, "operation")
