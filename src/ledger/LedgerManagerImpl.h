@@ -6,6 +6,7 @@
 #include "util/asio.h"
 
 #include "history/HistoryManager.h"
+#include "ledger/SyncingLedgerChain.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerManager.h"
 #include "main/PersistentState.h"
@@ -49,10 +50,10 @@ class LedgerManagerImpl : public LedgerManager
 
     medida::Counter& mSyncingLedgersSize;
 
-    std::vector<LedgerCloseData> mSyncingLedgers;
+    SyncingLedgerChain mSyncingLedgers;
 
     void historyCaughtup(asio::error_code const& ec,
-                         HistoryManager::CatchupMode mode,
+                         CatchupManager::CatchupMode mode,
                          LedgerHeaderHistoryEntry const& lastClosed);
 
     void processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
@@ -61,7 +62,7 @@ class LedgerManagerImpl : public LedgerManager
                            LedgerDelta& ledgerDelta,
                            TransactionResultSet& txResultSet);
 
-    void closeLedgerHelper(LedgerDelta const& delta);
+    void ledgerClosed(LedgerDelta const& delta);
     void advanceLedgerPointers();
 
     State mState;
@@ -73,7 +74,7 @@ class LedgerManagerImpl : public LedgerManager
     State getState() const override;
     std::string getStateHuman() const override;
 
-    void externalizeValue(LedgerCloseData const& ledgerData) override;
+    void valueExternalized(LedgerCloseData const& ledgerData) override;
 
     uint32_t getLedgerNum() const override;
     uint32_t getLastClosedLedgerNum() const override;
@@ -84,6 +85,7 @@ class LedgerManagerImpl : public LedgerManager
     uint64_t secondsSinceLastLedgerClose() const override;
     void syncMetrics() override;
 
+    void startNewLedger(int64_t balance, uint32_t baseFee, uint32_t baseReserve, uint32_t maxTxSetSize);
     void startNewLedger() override;
     void loadLastKnownLedger(
         std::function<void(asio::error_code const& ec)> handler) override;
@@ -95,7 +97,7 @@ class LedgerManagerImpl : public LedgerManager
 
     Database& getDatabase() override;
 
-    void startCatchUp(uint32_t initLedger, HistoryManager::CatchupMode resume,
+    void startCatchUp(uint32_t initLedger, CatchupManager::CatchupMode resume,
                       bool manualCatchup = false) override;
     HistoryManager::VerifyHashStatus
     verifyCatchupCandidate(LedgerHeaderHistoryEntry const&) const override;

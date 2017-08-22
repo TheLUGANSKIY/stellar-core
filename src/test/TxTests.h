@@ -10,6 +10,7 @@
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
 #include "overlay/StellarXDR.h"
+#include "test/TestPrinter.h"
 #include "util/optional.h"
 
 namespace stellar
@@ -33,28 +34,23 @@ struct ThresholdSetter
     optional<uint8_t> highThreshold;
 };
 
-bool applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app);
-
-void checkEntry(LedgerEntry const& le, Application& app);
-void checkAccount(AccountID const& id, Application& app);
+bool applyCheck(TransactionFramePtr tx, Application& app);
+void applyTx(TransactionFramePtr const& tx, Application& app);
 
 TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
                               int month, int year,
-                              TransactionFramePtr tx = nullptr);
-
-TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
-                              int month, int year, TxSetFramePtr txSet);
+                              std::vector<TransactionFramePtr> const& txs = {});
 
 SecretKey getRoot(Hash const& networkID);
 
 SecretKey getAccount(const char* n);
 
 // shorthand to load an existing account
-AccountFrame::pointer loadAccount(SecretKey const& k, Application& app,
+AccountFrame::pointer loadAccount(PublicKey const& k, Application& app,
                                   bool mustExist = true);
 
 // short hand to check that an account does not exist
-void requireNoAccount(SecretKey const& k, Application& app);
+void requireNoAccount(PublicKey const& k, Application& app);
 
 OfferFrame::pointer loadOffer(PublicKey const& k, uint64 offerID,
                               Application& app, bool mustExist);
@@ -62,91 +58,54 @@ OfferFrame::pointer loadOffer(PublicKey const& k, uint64 offerID,
 TrustFrame::pointer loadTrustLine(SecretKey const& k, Asset const& asset,
                                   Application& app, bool mustExist = true);
 
-SequenceNumber getAccountSeqNum(SecretKey const& k, Application& app);
-
-int64_t getAccountBalance(SecretKey const& k, Application& app);
-
-xdr::xvector<Signer, 20> getAccountSigners(SecretKey const& k,
+xdr::xvector<Signer, 20> getAccountSigners(PublicKey const& k,
                                            Application& app);
 
-TransactionFramePtr transactionFromOperation(Hash const& networkID,
-                                             SecretKey const& from,
-                                             SequenceNumber seq,
-                                             Operation const& op);
 TransactionFramePtr
-transactionFromOperations(Hash const& networkID, SecretKey const& from,
+transactionFromOperations(Application& app, SecretKey const& from,
                           SequenceNumber seq,
-                          const std::vector<Operation>& ops);
+                          std::vector<Operation> const& ops);
 
-TransactionFramePtr createChangeTrust(Hash const& networkID,
-                                      SecretKey const& from,
-                                      SecretKey const& to, SequenceNumber seq,
-                                      std::string const& assetCode,
-                                      int64_t limit);
+Operation
+changeTrust(Asset const& asset, int64_t limit);
 
-void applyChangeTrust(Application& app, SecretKey const& from,
-                      PublicKey const& to, SequenceNumber seq,
-                      std::string const& assetCode, int64_t limit);
+Operation
+allowTrust(PublicKey const& trustor, Asset const& asset,
+                   bool authorize);
 
-TransactionFramePtr
-createAllowTrust(Hash const& networkID, SecretKey const& from,
-                 PublicKey const& trustor, SequenceNumber seq,
-                 std::string const& assetCode, bool authorize);
+Operation inflation();
 
-void applyAllowTrust(Application& app, SecretKey const& from,
-                     PublicKey const& trustor, SequenceNumber seq,
-                     std::string const& assetCode, bool authorize);
+Operation accountMerge(PublicKey const& dest);
 
-TransactionFramePtr createCreateAccountTx(Hash const& networkID,
-                                          SecretKey const& from,
-                                          SecretKey const& to,
-                                          SequenceNumber seq, int64_t amount);
+Operation manageData(std::string const& name, DataValue* value);
 
-void applyCreateAccountTx(Application& app, SecretKey const& from,
-                          SecretKey const& to, SequenceNumber seq,
-                          int64_t amount);
+Operation createAccount(PublicKey const& dest, int64_t amount);
 
-Operation createPaymentOp(SecretKey const* from, SecretKey const& to,
-                          int64_t amount);
+Operation payment(PublicKey const& to, int64_t amount);
 
-TransactionFramePtr createPaymentTx(Hash const& networkID,
-                                    SecretKey const& from, SecretKey const& to,
+Operation payment(PublicKey const& to, Asset const& asset, int64_t amount);
+
+TransactionFramePtr createPaymentTx(Application& app,
+                                    SecretKey const& from, PublicKey const& to,
                                     SequenceNumber seq, int64_t amount);
 
-void applyPaymentTx(Application& app, SecretKey const& from,
-                    SecretKey const& to, SequenceNumber seq, int64_t amount);
-
-TransactionFramePtr createCreditPaymentTx(Hash const& networkID,
+TransactionFramePtr createCreditPaymentTx(Application& app,
                                           SecretKey const& from,
                                           PublicKey const& to, Asset const& ci,
                                           SequenceNumber seq, int64_t amount);
 
-void applyCreditPaymentTx(Application& app, SecretKey const& from,
-                          PublicKey const& to, Asset const& ci,
-                          SequenceNumber seq, int64_t amount);
+Operation
+pathPayment(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
+            Asset const& destCur, int64_t destAmount,
+            std::vector<Asset> const& path);
 
-TransactionFramePtr
-createPathPaymentTx(Hash const& networkID, SecretKey const& from,
-                    PublicKey const& to, Asset const& sendCur, int64_t sendMax,
-                    Asset const& destCur, int64_t destAmount,
-                    SequenceNumber seq, std::vector<Asset> const& path);
+Operation manageOffer(uint64 offerId, Asset const& selling,
+                      Asset const& buying, Price const& price,
+                      int64_t amount);
 
-PathPaymentResult applyPathPaymentTx(Application& app, SecretKey const& from,
-                                     PublicKey const& to, Asset const& sendCur,
-                                     int64_t sendMax, Asset const& destCur,
-                                     int64_t destAmount, SequenceNumber seq,
-                                     std::vector<Asset> const& path,
-                                     Asset* noIssuer = nullptr);
-
-TransactionFramePtr manageOfferOp(Hash const& networkID, uint64 offerId,
-                                  SecretKey const& source, Asset const& selling,
-                                  Asset const& buying, Price const& price,
-                                  int64_t amount, SequenceNumber seq);
-
-TransactionFramePtr
-createPassiveOfferOp(Hash const& networkID, SecretKey const& source,
-                     Asset const& selling, Asset const& buying,
-                     Price const& price, int64_t amount, SequenceNumber seq);
+Operation
+createPassiveOffer(Asset const& selling, Asset const& buying,
+                   Price const& price, int64_t amount);
 
 // returns the ID of the new offer if created
 uint64_t applyManageOffer(Application& app, uint64 offerId,
@@ -162,50 +121,15 @@ uint64_t applyCreatePassiveOffer(Application& app, SecretKey const& source,
                                  SequenceNumber seq,
                                  ManageOfferEffect expectedEffect);
 
-TransactionFramePtr createSetOptions(
-    Hash const& networkID, SecretKey const& source, SequenceNumber seq,
-    AccountID* inflationDest, uint32_t* setFlags, uint32_t* clearFlags,
-    ThresholdSetter* thrs, Signer* signer, std::string* homeDomain);
-
-void applySetOptions(Application& app, SecretKey const& source,
-                     SequenceNumber seq, AccountID* inflationDest,
-                     uint32_t* setFlags, uint32_t* clearFlags,
-                     ThresholdSetter* thrs, Signer* signer,
-                     std::string* homeDomain);
-
-TransactionFramePtr createInflation(Hash const& networkID,
-                                    SecretKey const& from, SequenceNumber seq);
-OperationResult
-applyInflation(Application& app, SecretKey const& from, SequenceNumber seq,
-               InflationResultCode targetResult = INFLATION_SUCCESS);
-
-TransactionFramePtr createAccountMerge(Hash const& networkID,
-                                       SecretKey const& source,
-                                       PublicKey const& dest,
-                                       SequenceNumber seq);
-
-void applyAccountMerge(Application& app, SecretKey const& source,
-                       PublicKey const& dest, SequenceNumber seq);
-
-TransactionFramePtr createManageData(Hash const& networkID,
-                                     SecretKey const& source,
-                                     std::string const& name, DataValue* value,
-                                     SequenceNumber seq);
-
-void applyManageData(Application& app, SecretKey const& source,
-                     std::string const& name, DataValue* value,
-                     SequenceNumber seq);
+Operation setOptions(AccountID* inflationDest, uint32_t* setFlags,
+                     uint32_t* clearFlags, ThresholdSetter* thrs,
+                     Signer* signer, std::string* homeDomain);
 
 Asset makeAsset(SecretKey const& issuer, std::string const& code);
 
 OperationFrame const& getFirstOperationFrame(TransactionFrame const& tx);
 OperationResult const& getFirstResult(TransactionFrame const& tx);
 OperationResultCode getFirstResultCode(TransactionFrame const& tx);
-
-// modifying the type of the operation will lead to undefined behavior
-Operation& getFirstOperation(TransactionFrame& tx);
-
-void reSignTransaction(TransactionFrame& tx, SecretKey const& source);
 
 // checks that b-maxd <= a <= b
 // bias towards seller means

@@ -34,6 +34,7 @@ class Work : public WorkParent
 {
 
   public:
+    static size_t const RETRY_NEVER = 0;
     static size_t const RETRY_ONCE = 1;
     static size_t const RETRY_A_FEW = 5;
     static size_t const RETRY_A_LOT = 32;
@@ -45,7 +46,15 @@ class Work : public WorkParent
         WORK_RUNNING,
         WORK_SUCCESS,
         WORK_FAILURE_RETRY,
-        WORK_FAILURE_RAISE
+        WORK_FAILURE_RAISE,
+        WORK_FAILURE_FATAL
+    };
+
+    enum CompleteResult
+    {
+        WORK_COMPLETE_OK,
+        WORK_COMPLETE_FAILURE,
+        WORK_COMPLETE_FATAL
     };
 
     Work(Application& app, WorkParent& parent, std::string uniqueName,
@@ -78,6 +87,9 @@ class Work : public WorkParent
     // If you want to force failure (and reset / retry) you can return
     // WORK_FAILURE_RETRY or WORK_FAILURE_RAISE. After a retry count is
     // passed, WORK_FAILURE_RETRY means WORK_FAILURE_RAISE anyways.
+    // WORK_FAILURE_FATAL is equivalent to WORK_FAILURE_RAISE passed up in
+    // the work chain - when WORK_FAILURE_FATAL is raised in one work item,
+    // all work items that leaded to this one will also fail without retrying.
     virtual State onSuccess();
 
     static std::string stateName(State st);
@@ -92,13 +104,14 @@ class Work : public WorkParent
     size_t mMaxRetries{RETRY_A_FEW};
     size_t mRetries{0};
     State mState{WORK_PENDING};
+    bool mScheduled {false};
 
     std::unique_ptr<VirtualTimer> mRetryTimer;
 
     std::function<void(asio::error_code const& ec)> callComplete();
     void run();
-    void complete(asio::error_code const& ec);
-    void scheduleComplete(asio::error_code ec = asio::error_code());
+    void complete(CompleteResult result);
+    void scheduleComplete(CompleteResult result = WORK_COMPLETE_OK);
     void scheduleRetry();
     void scheduleRun();
     void
@@ -109,7 +122,12 @@ class Work : public WorkParent
     void
     scheduleFailure()
     {
-        scheduleComplete(std::make_error_code(std::errc::io_error));
+        scheduleComplete(WORK_COMPLETE_FAILURE);
+    }
+    void
+    scheduleFatalFailure()
+    {
+        scheduleComplete(WORK_COMPLETE_FATAL);
     }
 
     void setState(State s);

@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "history/CatchupManager.h"
 #include "history/HistoryManager.h"
 #include <memory>
 
@@ -78,7 +79,7 @@ class LedgerManager
     // close event. This is the most common cause of LedgerManager advancing
     // from one ledger to the next: the network reached consensus on
     // `ledgerData`.
-    virtual void externalizeValue(LedgerCloseData const& ledgerData) = 0;
+    virtual void valueExternalized(LedgerCloseData const& ledgerData) = 0;
 
     // Return the current ledger header.
     virtual LedgerHeader const& getCurrentLedgerHeader() const = 0;
@@ -144,7 +145,7 @@ class LedgerManager
     // "manual mode", in which rounding up and down to checkpoint frequencies is
     // disabled.
     virtual void startCatchUp(uint32_t initLedger,
-                              HistoryManager::CatchupMode resume,
+                              CatchupManager::CatchupMode resume,
                               bool manualCatchup = false) = 0;
 
     // Called by the history subsystem during catchup: this method asks the
@@ -163,7 +164,7 @@ class LedgerManager
 
     // Forcibly close the current ledger, applying `ledgerData` as the consensus
     // changes.  This is normally done automatically as part of
-    // `externalizeValue()`; this method is present in the public interface to
+    // `valueExternalized()`; this method is present in the public interface to
     // permit testing.
     virtual void closeLedger(LedgerCloseData const& ledgerData) = 0;
 

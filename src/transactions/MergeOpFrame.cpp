@@ -8,6 +8,7 @@
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "util/Logging.h"
 
 using namespace soci;
 
@@ -21,10 +22,10 @@ MergeOpFrame::MergeOpFrame(Operation const& op, OperationResult& res,
 {
 }
 
-int32_t
-MergeOpFrame::getNeededThreshold() const
+ThresholdLevel
+MergeOpFrame::getThresholdLevel() const
 {
-    return mSourceAccount->getHighThreshold();
+    return ThresholdLevel::HIGH;
 }
 
 // make sure the deleted Account hasn't issued credit
@@ -38,6 +39,8 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
 {
     AccountFrame::pointer otherAccount;
     Database& db = ledgerManager.getDatabase();
+    auto const& sourceAccount = mSourceAccount->getAccount();
+    int64 sourceBalance = sourceAccount.balance;
 
     otherAccount =
         AccountFrame::loadAccount(delta, mOperation.body.destination(), db);
@@ -51,6 +54,24 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
+    if (ledgerManager.getCurrentLedgerVersion() > 4)
+    {
+        AccountFrame::pointer thisAccount =
+            AccountFrame::loadAccount(delta, mSourceAccount->getID(), db);
+        if (!thisAccount)
+        {
+            app.getMetrics()
+                .NewMeter({"op-merge", "failure", "no-account"}, "operation")
+                .Mark();
+            innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
+            return false;
+        }
+        if (ledgerManager.getCurrentLedgerVersion() > 5)
+        {
+            sourceBalance = thisAccount->getBalance();
+        }
+    }
+
     if (mSourceAccount->isImmutableAuth())
     {
         app.getMetrics()
@@ -60,7 +81,6 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
-    auto const& sourceAccount = mSourceAccount->getAccount();
     if (sourceAccount.numSubEntries != sourceAccount.signers.size())
     {
         app.getMetrics()
@@ -70,7 +90,6 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
-    int64 sourceBalance = sourceAccount.balance;
     otherAccount->getAccount().balance += sourceBalance;
     otherAccount->storeChange(delta, db);
     mSourceAccount->storeDelete(delta, db);

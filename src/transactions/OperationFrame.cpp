@@ -31,6 +31,26 @@ namespace stellar
 
 using namespace std;
 
+namespace
+{
+
+int32_t
+getNeededThreshold(AccountFrame const& account, ThresholdLevel const level)
+{
+    switch (level)
+    {
+    case ThresholdLevel::LOW:
+        return account.getLowThreshold();
+    case ThresholdLevel::MEDIUM:
+        return account.getMediumThreshold();
+    case ThresholdLevel::HIGH:
+        return account.getHighThreshold();
+    default:
+        assert(false);
+    }
+}
+}
+
 shared_ptr<OperationFrame>
 OperationFrame::makeHelper(Operation const& op, OperationResult& res,
                            TransactionFrame& tx)
@@ -89,17 +109,19 @@ OperationFrame::apply(SignatureChecker& signatureChecker, LedgerDelta& delta,
     return res;
 }
 
-int32_t
-OperationFrame::getNeededThreshold() const
+ThresholdLevel
+OperationFrame::getThresholdLevel() const
 {
-    return mSourceAccount->getMediumThreshold();
+    return ThresholdLevel::MEDIUM;
 }
 
 bool
 OperationFrame::checkSignature(SignatureChecker& signatureChecker) const
 {
+    auto neededThreshold =
+        getNeededThreshold(*mSourceAccount, getThresholdLevel());
     return mParentTx.checkSignature(signatureChecker, *mSourceAccount,
-                                    getNeededThreshold());
+                                    neededThreshold);
 }
 
 AccountID const&
@@ -110,9 +132,9 @@ OperationFrame::getSourceID() const
 }
 
 bool
-OperationFrame::loadAccount(LedgerDelta* delta, Database& db)
+OperationFrame::loadAccount(int ledgerProtocolVersion, LedgerDelta* delta, Database& db)
 {
-    mSourceAccount = mParentTx.loadAccount(delta, db, getSourceID());
+    mSourceAccount = mParentTx.loadAccount(ledgerProtocolVersion, delta, db, getSourceID());
     return !!mSourceAccount;
 }
 
@@ -131,7 +153,7 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
                            LedgerDelta* delta)
 {
     bool forApply = (delta != nullptr);
-    if (!loadAccount(delta, app.getDatabase()))
+    if (!loadAccount(app.getLedgerManager().getCurrentLedgerVersion(), delta, app.getDatabase()))
     {
         if (forApply || !mOperation.sourceAccount)
         {
@@ -148,7 +170,7 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
         }
     }
 
-    if (!checkSignature(signatureChecker))
+    if (app.getLedgerManager().getCurrentLedgerVersion() != 7 && !checkSignature(signatureChecker))
     {
         app.getMetrics()
             .NewMeter({"operation", "invalid", "bad-auth"}, "operation")

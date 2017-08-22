@@ -8,6 +8,7 @@
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/make_unique.h"
+#include "work/WorkManager.h"
 #include "work/WorkParent.h"
 
 #include "medida/meter.h"
@@ -66,6 +67,7 @@ Work::getStatus() const
         return fmt::format("Retrying in {:d} sec: {:s}", eta, getUniqueName());
     }
     case WORK_FAILURE_RAISE:
+    case WORK_FAILURE_FATAL:
         return fmt::format("Failed: {:s}", getUniqueName());
     default:
         assert(false);
@@ -111,6 +113,8 @@ Work::stateName(State st)
         return "WORK_FAILURE_RETRY";
     case WORK_FAILURE_RAISE:
         return "WORK_FAILURE_RAISE";
+    case WORK_FAILURE_FATAL:
+        return "WORK_FAILURE_FATAL";
     default:
         throw std::runtime_error("Unknown Work::State");
     }
@@ -127,45 +131,64 @@ Work::callComplete()
         {
             return;
         }
-        self->complete(ec);
+        self->complete(ec ? WORK_COMPLETE_FAILURE : WORK_COMPLETE_OK);
     };
 }
 
 void
 Work::scheduleRun()
 {
+    if (mScheduled)
+    {
+        return;
+    }
+
     std::weak_ptr<Work> weak(
         std::static_pointer_cast<Work>(shared_from_this()));
     CLOG(DEBUG, "Work") << "scheduling run of " << getUniqueName();
+    mScheduled = true;
     mApp.getClock().getIOService().post([weak]() {
         auto self = weak.lock();
         if (!self)
         {
             return;
         }
+        self->mScheduled = false;
         self->run();
     });
 }
 
 void
-Work::scheduleComplete(asio::error_code ec)
+Work::scheduleComplete(CompleteResult result)
 {
+    if (mScheduled)
+    {
+        return;
+    }
+
     std::weak_ptr<Work> weak(
         std::static_pointer_cast<Work>(shared_from_this()));
     CLOG(DEBUG, "Work") << "scheduling completion of " << getUniqueName();
-    mApp.getClock().getIOService().post([weak, ec]() {
+    mScheduled = true;
+    mApp.getClock().getIOService().post([weak, result]() {
         auto self = weak.lock();
         if (!self)
         {
             return;
         }
-        self->complete(ec);
+        self->mScheduled = false;
+        self->complete(result);
     });
 }
 
 void
 Work::scheduleRetry()
 {
+    if (mScheduled)
+    {
+        return;
+    }
+
     if (getState() != WORK_FAILURE_RETRY)
     {
         std::string msg = fmt::format("retrying {} in state {}",
@@ -187,6 +210,7 @@ Work::scheduleRetry()
         << "Scheduling retry #" << (mRetries + 1) << "/" << mMaxRetries
         << " in " << std::chrono::duration_cast<std::chrono::seconds>(t).count()
         << " sec, for " << getUniqueName();
+    mScheduled = true;
     mRetryTimer->async_wait(
         [weak]() {
             auto self = weak.lock();
@@ -194,6 +218,7 @@ Work::scheduleRetry()
             {
                 return;
             }
+            self->mScheduled = false;
             self->mRetries++;
             self->reset();
             self->advance();
@@ -225,6 +250,13 @@ Work::advance()
                             << getUniqueName() << " successful, scheduling run";
         scheduleRun();
     }
+    else if (anyChildFatalFailure())
+    {
+        CLOG(DEBUG, "Work") << "some of " << mChildren.size() << " children of "
+                            << getUniqueName() << " fatally failed, scheduling "
+                            << "fatal failure";
+        scheduleFatalFailure();
+    }
     else if (anyChildRaiseFailure())
     {
         CLOG(DEBUG, "Work") << "some of " << mChildren.size() << " children of "
@@ -249,7 +281,7 @@ Work::run()
 }
 
 void
-Work::complete(asio::error_code const& ec)
+Work::complete(CompleteResult result)
 {
     CLOG(DEBUG, "Work") << "completed " << getUniqueName();
     auto& succ =
@@ -257,13 +289,17 @@ Work::complete(asio::error_code const& ec)
     auto& fail =
         mApp.getMetrics().NewMeter({"work", "unit", "failure"}, "unit");
 
-    if (ec)
+    switch (result)
     {
-        setState(WORK_FAILURE_RETRY);
-    }
-    else
-    {
+    case WORK_COMPLETE_OK:
         setState(onSuccess());
+        break;
+    case WORK_COMPLETE_FAILURE:
+        setState(WORK_FAILURE_RETRY);
+        break;
+    case WORK_COMPLETE_FATAL:
+        setState(WORK_FAILURE_FATAL);
+        break;
     }
 
     switch (getState())
@@ -282,6 +318,7 @@ Work::complete(asio::error_code const& ec)
         break;
 
     case WORK_FAILURE_RAISE:
+    case WORK_FAILURE_FATAL:
         fail.Mark();
         onFailureRaise();
         CLOG(DEBUG, "Work") << "notifying parent of failed " << getUniqueName();
@@ -345,7 +382,7 @@ Work::getState() const
 bool
 Work::isDone() const
 {
-    return mState == WORK_SUCCESS || mState == WORK_FAILURE_RAISE;
+    return mState == WORK_SUCCESS || mState == WORK_FAILURE_RAISE || mState == WORK_FAILURE_FATAL;
 }
 
 void

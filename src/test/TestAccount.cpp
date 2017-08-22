@@ -4,7 +4,10 @@
 
 #include "TestAccount.h"
 
+#include "ledger/DataFrame.h"
+#include "lib/catch.hpp"
 #include "main/Application.h"
+#include "test/TestExceptions.h"
 #include "test/TxTests.h"
 
 namespace stellar
@@ -12,21 +15,76 @@ namespace stellar
 
 using namespace txtest;
 
+SequenceNumber
+TestAccount::loadSequenceNumber() const
+{
+    return loadAccount(getPublicKey(), mApp)->getSeqNum();
+}
+
+void
+TestAccount::updateSequenceNumber()
+{
+    if (mSn == 0 && loadAccount(getPublicKey(), mApp, false))
+    {
+        mSn = loadSequenceNumber();
+    }
+}
+
+int64_t
+TestAccount::getBalance() const
+{
+    return loadAccount(getPublicKey(), mApp)->getBalance();
+}
+
+TransactionFramePtr
+TestAccount::tx(std::vector<Operation> const& ops, SequenceNumber sn)
+{
+    if (sn == 0)
+    {
+        sn = nextSequenceNumber();
+    }
+
+    return transactionFromOperations(mApp, getSecretKey(), sn, ops);
+}
+
+Operation
+TestAccount::op(Operation operation)
+{
+    operation.sourceAccount.activate() = getPublicKey();
+    return operation;
+}
+
 TestAccount
 TestAccount::createRoot(Application& app)
 {
     auto secretKey = getRoot(app.getNetworkID());
-    auto sequenceNumber = getAccountSeqNum(secretKey, app);
-    return TestAccount{app, secretKey, sequenceNumber};
+    return TestAccount{app, secretKey};
 }
 
 TestAccount
 TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
 {
-    applyCreateAccountTx(mApp, getSecretKey(), secretKey, nextSequenceNumber(),
-                         initialBalance);
-    auto sequenceNumber = getAccountSeqNum(secretKey, mApp);
-    return TestAccount{mApp, secretKey, sequenceNumber};
+    auto toCreate = loadAccount(secretKey.getPublicKey(), mApp, false);
+    auto self = loadAccount(getSecretKey().getPublicKey(), mApp);
+
+    try
+    {
+        applyTx(tx({createAccount(secretKey.getPublicKey(), initialBalance)}), mApp);
+    }
+    catch (...)
+    {
+        auto toCreateAfter = loadAccount(secretKey.getPublicKey(), mApp, false);
+        // check that the target account didn't change
+        REQUIRE(!!toCreate == !!toCreateAfter);
+        if (toCreate && toCreateAfter)
+        {
+            REQUIRE(toCreate->getAccount() == toCreateAfter->getAccount());
+        }
+        throw;
+    }
+
+    REQUIRE(loadAccount(secretKey.getPublicKey(), mApp));
+    return TestAccount{mApp, secretKey};
 }
 
 TestAccount
@@ -38,34 +96,34 @@ TestAccount::create(std::string const& name, uint64_t initialBalance)
 void
 TestAccount::merge(PublicKey const& into)
 {
-    applyAccountMerge(mApp, getSecretKey(), into, nextSequenceNumber());
+    applyTx(tx({accountMerge(into)}), mApp);
+
+    REQUIRE(loadAccount(into, mApp));
+    REQUIRE(!loadAccount(getPublicKey(), mApp, false));
+}
+
+void
+TestAccount::inflation()
+{
+    applyTx(tx({txtest::inflation()}), mApp);
 }
 
 void
 TestAccount::changeTrust(Asset const& asset, int64_t limit)
 {
-    auto assetCode = std::string{};
-    assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
-    applyChangeTrust(mApp, getSecretKey(), asset.alphaNum4().issuer,
-                     nextSequenceNumber(), assetCode, limit);
+    applyTx(tx({txtest::changeTrust(asset, limit)}), mApp);
 }
 
 void
 TestAccount::allowTrust(Asset const& asset, PublicKey const& trustor)
 {
-    auto assetCode = std::string{};
-    assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
-    applyAllowTrust(mApp, getSecretKey(), trustor, nextSequenceNumber(),
-                    assetCode, true);
+    applyTx(tx({txtest::allowTrust(trustor, asset, true)}), mApp);
 }
 
 void
 TestAccount::denyTrust(Asset const& asset, PublicKey const& trustor)
 {
-    auto assetCode = std::string{};
-    assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
-    applyAllowTrust(mApp, getSecretKey(), trustor, nextSequenceNumber(),
-                    assetCode, false);
+    applyTx(tx({txtest::allowTrust(trustor, asset, false)}), mApp);
 }
 
 void
@@ -73,14 +131,26 @@ TestAccount::setOptions(AccountID* inflationDest, uint32_t* setFlags,
                         uint32_t* clearFlags, ThresholdSetter* thrs,
                         Signer* signer, std::string* homeDomain)
 {
-    applySetOptions(mApp, getSecretKey(), nextSequenceNumber(), inflationDest,
-                    setFlags, clearFlags, thrs, signer, homeDomain);
+    applyTx(tx({txtest::setOptions(inflationDest, setFlags, clearFlags, thrs,
+                                   signer, homeDomain)}), mApp);
 }
 
 void
 TestAccount::manageData(std::string const& name, DataValue* value)
 {
-    applyManageData(mApp, getSecretKey(), name, value, nextSequenceNumber());
+    applyTx(tx({txtest::manageData(name, value)}), mApp);
+
+    auto dataFrame =
+        DataFrame::loadData(getPublicKey(), name, mApp.getDatabase());
+    if (value)
+    {
+        REQUIRE(dataFrame != nullptr);
+        REQUIRE(dataFrame->getData().dataValue == *value);
+    }
+    else
+    {
+        REQUIRE(dataFrame == nullptr);
+    }
 }
 
 OfferFrame::pointer
@@ -116,18 +186,38 @@ TestAccount::createPassiveOffer(Asset const& selling, Asset const& buying,
 }
 
 void
-TestAccount::pay(SecretKey const& destination, int64_t amount)
+TestAccount::pay(PublicKey const& destination, int64_t amount)
 {
-    applyPaymentTx(mApp, getSecretKey(), destination, nextSequenceNumber(),
-                   amount);
+    auto toAccount = loadAccount(destination, mApp, false);
+    auto fromAccount = loadAccount(getPublicKey(), mApp);
+    auto transaction = tx({payment(destination, amount)});
+
+    try
+    {
+        applyTx(transaction, mApp);
+    }
+    catch (...)
+    {
+        auto toAccountAfter = loadAccount(destination, mApp, false);
+        // check that the target account didn't change
+        REQUIRE(!!toAccount == !!toAccountAfter);
+        if (toAccount && toAccountAfter)
+        {
+            REQUIRE(toAccount->getAccount() == toAccountAfter->getAccount());
+        }
+        throw;
+    }
+
+    auto toAccountAfter = loadAccount(destination, mApp, false);
+    REQUIRE(toAccount);
+    REQUIRE(toAccountAfter);
 }
 
 void
-TestAccount::pay(PublicKey const& destination, Asset const& selling,
+TestAccount::pay(PublicKey const& destination, Asset const& asset,
                  int64_t amount)
 {
-    applyCreditPaymentTx(mApp, getSecretKey(), destination, selling,
-                         nextSequenceNumber(), amount);
+    applyTx(tx({payment(destination, asset, amount)}), mApp);
 }
 
 PathPaymentResult
@@ -135,8 +225,21 @@ TestAccount::pay(PublicKey const& destination, Asset const& sendCur,
                  int64_t sendMax, Asset const& destCur, int64_t destAmount,
                  std::vector<Asset> const& path, Asset* noIssuer)
 {
-    return applyPathPaymentTx(mApp, getSecretKey(), destination, sendCur,
-                              sendMax, destCur, destAmount,
-                              nextSequenceNumber(), path, noIssuer);
+    auto transaction = tx({pathPayment(destination, sendCur, sendMax,
+                                               destCur, destAmount, path)});
+    try
+    {
+        applyTx(transaction, mApp);
+    }
+    catch (ex_PATH_PAYMENT_NO_ISSUER &)
+    {
+        REQUIRE(noIssuer);
+        REQUIRE(*noIssuer == transaction->getResult().result.results()[0].tr().pathPaymentResult().noIssuer());
+        throw;
+    }
+
+    REQUIRE(!noIssuer);
+
+    return getFirstResult(*transaction).tr().pathPaymentResult();
 }
 };

@@ -26,8 +26,10 @@
 
 #include "ExternalQueue.h"
 
+#include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include <regex>
+
 using namespace stellar::txtest;
 
 using std::placeholders::_1;
@@ -114,18 +116,6 @@ CommandHandler::manualCmd(std::string const& cmd)
     LOG(INFO) << cmd << " -> " << reply.content;
 }
 
-SequenceNumber
-getSeq(SecretKey const& k, Application& app)
-{
-    AccountFrame::pointer account;
-    account = AccountFrame::loadAccount(k.getPublicKey(), app.getDatabase());
-    if (account)
-    {
-        return account->getSeqNum();
-    }
-    return 0;
-}
-
 void
 CommandHandler::testAcc(std::string const& params, std::string& retStr)
 {
@@ -149,7 +139,7 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
         {
             key = getAccount(accName->second.c_str());
         }
-        auto acc = loadAccount(key, mApp, false);
+        auto acc = loadAccount(key.getPublicKey(), mApp, false);
         if (acc)
         {
             root["name"] = accName->second;
@@ -178,24 +168,14 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
     {
         Hash const& networkID = mApp.getNetworkID();
 
-        SecretKey toKey, fromKey;
-        if (to->second == "root")
-        {
-            toKey = getRoot(networkID);
-        }
-        else
-        {
-            toKey = getAccount(to->second.c_str());
-        }
-
-        if (from->second == "root")
-        {
-            fromKey = getRoot(networkID);
-        }
-        else
-        {
-            fromKey = getAccount(from->second.c_str());
-        }
+        auto toAccount =
+            to->second == "root"
+                ? TestAccount{mApp, getRoot(networkID)}
+                : TestAccount{mApp, getAccount(to->second.c_str())};
+        auto fromAccount =
+            from->second == "root"
+                ? TestAccount{mApp, getRoot(networkID)}
+                : TestAccount{mApp, getAccount(from->second.c_str())};
 
         uint64_t paymentAmount = 0;
         std::istringstream iss(amount->second);
@@ -203,23 +183,18 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
 
         root["from_name"] = from->second;
         root["to_name"] = to->second;
-        root["from_id"] = KeyUtils::toStrKey(fromKey.getPublicKey());
-        root["to_id"] = KeyUtils::toStrKey(toKey.getPublicKey());
-        ;
+        root["from_id"] = KeyUtils::toStrKey(fromAccount.getPublicKey());
+        root["to_id"] = KeyUtils::toStrKey(toAccount.getPublicKey());
         root["amount"] = (Json::UInt64)paymentAmount;
-
-        SequenceNumber fromSeq = getSeq(fromKey, mApp) + 1;
 
         TransactionFramePtr txFrame;
         if (create != retMap.end() && create->second == "true")
         {
-            txFrame = createCreateAccountTx(networkID, fromKey, toKey, fromSeq,
-                                            paymentAmount);
+            txFrame = fromAccount.tx({createAccount(toAccount, paymentAmount)});
         }
         else
         {
-            txFrame = createPaymentTx(networkID, fromKey, toKey, fromSeq,
-                                      paymentAmount);
+            txFrame = fromAccount.tx({payment(toAccount, paymentAmount)});
         }
 
         switch (mApp.getHerder().recvTransaction(txFrame))
@@ -515,7 +490,7 @@ CommandHandler::catchup(std::string const& params, std::string& retStr)
         break;
     }
 
-    HistoryManager::CatchupMode mode = HistoryManager::CATCHUP_MINIMAL;
+    CatchupManager::CatchupMode mode = CatchupManager::CATCHUP_MINIMAL;
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
@@ -542,15 +517,15 @@ CommandHandler::catchup(std::string const& params, std::string& retStr)
     {
         if (modeP->second == std::string("complete"))
         {
-            mode = HistoryManager::CATCHUP_COMPLETE;
+            mode = CatchupManager::CATCHUP_COMPLETE;
         }
         else if (modeP->second == std::string("minimal"))
         {
-            mode = HistoryManager::CATCHUP_MINIMAL;
+            mode = CatchupManager::CATCHUP_MINIMAL;
         }
         else if (modeP->second == std::string("recent"))
         {
-            mode = HistoryManager::CATCHUP_RECENT;
+            mode = CatchupManager::CATCHUP_RECENT;
         }
         else
         {
@@ -562,9 +537,9 @@ CommandHandler::catchup(std::string const& params, std::string& retStr)
     mApp.getLedgerManager().startCatchUp(ledger, mode, true);
     retStr = (std::string("Started catchup to ledger ") +
               std::to_string(ledger) + std::string(" in mode ") +
-              std::string(mode == HistoryManager::CATCHUP_COMPLETE
+              std::string(mode == CatchupManager::CATCHUP_COMPLETE
                               ? "CATCHUP_COMPLETE"
-                              : (mode == HistoryManager::CATCHUP_RECENT
+                              : (mode == CatchupManager::CATCHUP_RECENT
                                      ? "CATCHUP_RECENT"
                                      : "CATCHUP_MINIMAL")));
 }

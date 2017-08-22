@@ -1,6 +1,7 @@
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
 #include "util/asio.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
@@ -8,7 +9,10 @@
 #include "herder/LedgerCloseData.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryManager.h"
-#include "history/HistoryWork.h"
+#include "historywork/GetHistoryArchiveStateWork.h"
+#include "historywork/GunzipFileWork.h"
+#include "historywork/GzipFileWork.h"
+#include "historywork/PutHistoryArchiveStateWork.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -16,6 +20,7 @@
 #include "main/ExternalQueue.h"
 #include "main/PersistentState.h"
 #include "process/ProcessManager.h"
+#include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "util/Fs.h"
@@ -25,6 +30,7 @@
 #include "util/TmpDir.h"
 #include "work/WorkManager.h"
 #include "work/WorkParent.h"
+
 #include <cstdio>
 #include <fstream>
 #include <random>
@@ -34,6 +40,7 @@ using namespace stellar;
 
 namespace stellar
 {
+using namespace txtest;
 using xdr::operator==;
 };
 
@@ -94,11 +101,6 @@ class HistoryTests
     Application::pointer appPtr;
     Application& app;
 
-    SecretKey mRoot;
-    SecretKey mAlice;
-    SecretKey mBob;
-    SecretKey mCarol;
-
     std::default_random_engine mGenerator;
     std::bernoulli_distribution mFlip{0.5};
 
@@ -110,15 +112,15 @@ class HistoryTests
     std::vector<uint256> mBucket0Hashes;
     std::vector<uint256> mBucket1Hashes;
 
-    std::vector<int64_t> mRootBalances;
-    std::vector<int64_t> mAliceBalances;
-    std::vector<int64_t> mBobBalances;
-    std::vector<int64_t> mCarolBalances;
+    std::vector<int64_t> rootBalances;
+    std::vector<int64_t> aliceBalances;
+    std::vector<int64_t> bobBalances;
+    std::vector<int64_t> carolBalances;
 
-    std::vector<SequenceNumber> mRootSeqs;
-    std::vector<SequenceNumber> mAliceSeqs;
-    std::vector<SequenceNumber> mBobSeqs;
-    std::vector<SequenceNumber> mCarolSeqs;
+    std::vector<SequenceNumber> rootSeqs;
+    std::vector<SequenceNumber> aliceSeqs;
+    std::vector<SequenceNumber> bobSeqs;
+    std::vector<SequenceNumber> carolSeqs;
 
   public:
     HistoryTests(std::shared_ptr<Configurator> cg =
@@ -128,10 +130,6 @@ class HistoryTests
         , appPtr(
               Application::create(clock, mConfigurator->configure(cfg, true)))
         , app(*appPtr)
-        , mRoot(txtest::getRoot(app.getNetworkID()))
-        , mAlice(txtest::getAccount("alice"))
-        , mBob(txtest::getAccount("bob"))
-        , mCarol(txtest::getAccount("carol"))
     {
         CHECK(HistoryManager::initializeHistoryArchive(app, "test"));
     }
@@ -143,11 +141,11 @@ class HistoryTests
 
     Application::pointer
     catchupNewApplication(uint32_t initLedger, Config::TestDbMode dbMode,
-                          HistoryManager::CatchupMode resumeMode,
+                          CatchupManager::CatchupMode resumeMode,
                           std::string const& appName, uint32_t recent = 80);
 
     bool catchupApplication(uint32_t initLedger,
-                            HistoryManager::CatchupMode resumeMode,
+                            CatchupManager::CatchupMode resumeMode,
                             Application::pointer app2, bool doStart = true,
                             uint32_t gap = 0);
 
@@ -267,48 +265,36 @@ HistoryTests::generateRandomLedger()
     uint64_t small = 100 + ledgerSeq;
     uint64_t closeTime = 60 * 5 * ledgerSeq;
 
-    SequenceNumber rseq = txtest::getAccountSeqNum(mRoot, app) + 1;
-
-    Hash const& networkID = app.getNetworkID();
+    auto root = TestAccount{app, getRoot(app.getNetworkID())};
+    auto alice = TestAccount{app, getAccount("alice")};
+    auto bob = TestAccount{app, getAccount("bob")};
+    auto carol = TestAccount{app, getAccount("carol")};
 
     // Root sends to alice every tx, bob every other tx, carol every 4rd tx.
-    txSet->add(
-        txtest::createCreateAccountTx(networkID, mRoot, mAlice, rseq++, big));
-    txSet->add(
-        txtest::createCreateAccountTx(networkID, mRoot, mBob, rseq++, big));
-    txSet->add(
-        txtest::createCreateAccountTx(networkID, mRoot, mCarol, rseq++, big));
-    txSet->add(txtest::createPaymentTx(networkID, mRoot, mAlice, rseq++, big));
-    txSet->add(txtest::createPaymentTx(networkID, mRoot, mBob, rseq++, big));
-    txSet->add(txtest::createPaymentTx(networkID, mRoot, mCarol, rseq++, big));
+    txSet->add(root.tx({createAccount(alice, big)}));
+    txSet->add(root.tx({createAccount(bob, big)}));
+    txSet->add(root.tx({createAccount(carol, big)}));
+    txSet->add(root.tx({payment(alice, big)}));
+    txSet->add(root.tx({payment(bob, big)}));
+    txSet->add(root.tx({payment(carol, big)}));
 
     // They all randomly send a little to one another every ledger after #4
     if (ledgerSeq > 4)
     {
-        SequenceNumber aseq = txtest::getAccountSeqNum(mAlice, app) + 1;
-        SequenceNumber bseq = txtest::getAccountSeqNum(mBob, app) + 1;
-        SequenceNumber cseq = txtest::getAccountSeqNum(mCarol, app) + 1;
+        if (flip())
+            txSet->add(alice.tx({payment(bob, small)}));
+        if (flip())
+            txSet->add(alice.tx({payment(carol, small)}));
 
         if (flip())
-            txSet->add(txtest::createPaymentTx(networkID, mAlice, mBob, aseq++,
-                                               small));
+            txSet->add(bob.tx({payment(alice, small)}));
         if (flip())
-            txSet->add(txtest::createPaymentTx(networkID, mAlice, mCarol,
-                                               aseq++, small));
+            txSet->add(bob.tx({payment(carol, small)}));
 
         if (flip())
-            txSet->add(txtest::createPaymentTx(networkID, mBob, mAlice, bseq++,
-                                               small));
+            txSet->add(carol.tx({payment(alice, small)}));
         if (flip())
-            txSet->add(txtest::createPaymentTx(networkID, mBob, mCarol, bseq++,
-                                               small));
-
-        if (flip())
-            txSet->add(txtest::createPaymentTx(networkID, mCarol, mAlice,
-                                               cseq++, small));
-        if (flip())
-            txSet->add(txtest::createPaymentTx(networkID, mCarol, mBob, cseq++,
-                                               small));
+            txSet->add(carol.tx({payment(bob, small)}));
     }
 
     // Provoke sortForHash and hash-caching:
@@ -337,15 +323,15 @@ HistoryTests::generateRandomLedger()
                                  .getCurr()
                                  ->getHash());
 
-    mRootBalances.push_back(txtest::getAccountBalance(mRoot, app));
-    mAliceBalances.push_back(txtest::getAccountBalance(mAlice, app));
-    mBobBalances.push_back(txtest::getAccountBalance(mBob, app));
-    mCarolBalances.push_back(txtest::getAccountBalance(mCarol, app));
+    rootBalances.push_back(root.getBalance());
+    aliceBalances.push_back(alice.getBalance());
+    bobBalances.push_back(bob.getBalance());
+    carolBalances.push_back(carol.getBalance());
 
-    mRootSeqs.push_back(txtest::getAccountSeqNum(mRoot, app));
-    mAliceSeqs.push_back(txtest::getAccountSeqNum(mAlice, app));
-    mBobSeqs.push_back(txtest::getAccountSeqNum(mBob, app));
-    mCarolSeqs.push_back(txtest::getAccountSeqNum(mCarol, app));
+    rootSeqs.push_back(root.loadSequenceNumber());
+    aliceSeqs.push_back(alice.loadSequenceNumber());
+    bobSeqs.push_back(bob.loadSequenceNumber());
+    carolSeqs.push_back(carol.loadSequenceNumber());
 }
 
 void
@@ -385,7 +371,7 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
 Application::pointer
 HistoryTests::catchupNewApplication(uint32_t initLedger,
                                     Config::TestDbMode dbMode,
-                                    HistoryManager::CatchupMode resumeMode,
+                                    CatchupManager::CatchupMode resumeMode,
                                     std::string const& appName, uint32_t recent)
 {
 
@@ -396,7 +382,7 @@ HistoryTests::catchupNewApplication(uint32_t initLedger,
 
     mCfgs.emplace_back(
         getTestConfig(static_cast<int>(mCfgs.size()) + 1, dbMode));
-    if (resumeMode == HistoryManager::CATCHUP_RECENT)
+    if (resumeMode == CatchupManager::CATCHUP_RECENT)
     {
         mCfgs.back().CATCHUP_RECENT = recent;
     }
@@ -410,10 +396,14 @@ HistoryTests::catchupNewApplication(uint32_t initLedger,
 
 bool
 HistoryTests::catchupApplication(uint32_t initLedger,
-                                 HistoryManager::CatchupMode resumeMode,
+                                 CatchupManager::CatchupMode resumeMode,
                                  Application::pointer app2, bool doStart,
                                  uint32_t gap)
 {
+    auto root = TestAccount{*app2, getRoot(app.getNetworkID())};
+    auto alice = TestAccount{*app2, getAccount("alice")};
+    auto bob = TestAccount{*app2, getAccount("bob")};
+    auto carol = TestAccount{*app2, getAccount("carol")};
 
     auto& lm = app2->getLedgerManager();
     if (doStart)
@@ -474,8 +464,9 @@ HistoryTests::catchupApplication(uint32_t initLedger,
             auto const& lcd = mLedgerCloseDatas.at(n - 2);
             CLOG(INFO, "History")
                 << "force-externalizing LedgerCloseData for " << n
-                << " has txhash:" << hexAbbrev(lcd.mTxSet->getContentsHash());
-            lm.externalizeValue(lcd);
+                << " has txhash:"
+                << hexAbbrev(lcd.getTxSet()->getContentsHash());
+            lm.valueExternalized(lcd);
         }
     }
 
@@ -569,25 +560,25 @@ HistoryTests::catchupApplication(uint32_t initLedger,
     CHECK(wantBucket0Hash == haveBucket0Hash);
     CHECK(wantBucket1Hash == haveBucket1Hash);
 
-    auto haveRootBalance = mRootBalances.at(i);
-    auto haveAliceBalance = mAliceBalances.at(i);
-    auto haveBobBalance = mBobBalances.at(i);
-    auto haveCarolBalance = mCarolBalances.at(i);
+    auto haveRootBalance = rootBalances.at(i);
+    auto haveAliceBalance = aliceBalances.at(i);
+    auto haveBobBalance = bobBalances.at(i);
+    auto haveCarolBalance = carolBalances.at(i);
 
-    auto haveRootSeq = mRootSeqs.at(i);
-    auto haveAliceSeq = mAliceSeqs.at(i);
-    auto haveBobSeq = mBobSeqs.at(i);
-    auto haveCarolSeq = mCarolSeqs.at(i);
+    auto haveRootSeq = rootSeqs.at(i);
+    auto haveAliceSeq = aliceSeqs.at(i);
+    auto haveBobSeq = bobSeqs.at(i);
+    auto haveCarolSeq = carolSeqs.at(i);
 
-    auto wantRootBalance = txtest::getAccountBalance(mRoot, *app2);
-    auto wantAliceBalance = txtest::getAccountBalance(mAlice, *app2);
-    auto wantBobBalance = txtest::getAccountBalance(mBob, *app2);
-    auto wantCarolBalance = txtest::getAccountBalance(mCarol, *app2);
+    auto wantRootBalance = root.getBalance();
+    auto wantAliceBalance = alice.getBalance();
+    auto wantBobBalance = bob.getBalance();
+    auto wantCarolBalance = carol.getBalance();
 
-    auto wantRootSeq = txtest::getAccountSeqNum(mRoot, *app2);
-    auto wantAliceSeq = txtest::getAccountSeqNum(mAlice, *app2);
-    auto wantBobSeq = txtest::getAccountSeqNum(mBob, *app2);
-    auto wantCarolSeq = txtest::getAccountSeqNum(mCarol, *app2);
+    auto wantRootSeq = root.loadSequenceNumber();
+    auto wantAliceSeq = alice.loadSequenceNumber();
+    auto wantBobSeq = bob.loadSequenceNumber();
+    auto wantCarolSeq = carol.loadSequenceNumber();
 
     CHECK(haveRootBalance == wantRootBalance);
     CHECK(haveAliceBalance == wantAliceBalance);
@@ -609,15 +600,15 @@ TEST_CASE_METHOD(HistoryTests, "History publish", "[history]")
 }
 
 static std::string
-resumeModeName(HistoryManager::CatchupMode mode)
+resumeModeName(CatchupManager::CatchupMode mode)
 {
     switch (mode)
     {
-    case HistoryManager::CATCHUP_MINIMAL:
+    case CatchupManager::CATCHUP_MINIMAL:
         return "CATCHUP_MINIMAL";
-    case HistoryManager::CATCHUP_COMPLETE:
+    case CatchupManager::CATCHUP_COMPLETE:
         return "CATCHUP_COMPLETE";
-    case HistoryManager::CATCHUP_RECENT:
+    case CatchupManager::CATCHUP_RECENT:
         return "CATCHUP_RECENT";
     default:
         abort();
@@ -651,9 +642,9 @@ TEST_CASE_METHOD(HistoryTests, "Full history catchup",
 
     std::vector<Application::pointer> apps;
 
-    std::vector<HistoryManager::CatchupMode> resumeModes = {
-        HistoryManager::CATCHUP_MINIMAL, HistoryManager::CATCHUP_COMPLETE,
-        HistoryManager::CATCHUP_RECENT,
+    std::vector<CatchupManager::CatchupMode> resumeModes = {
+        CatchupManager::CATCHUP_MINIMAL, CatchupManager::CATCHUP_COMPLETE,
+        CatchupManager::CATCHUP_RECENT,
     };
 
     std::vector<Config::TestDbMode> dbModes = {Config::TESTDB_IN_MEMORY_SQLITE,
@@ -698,7 +689,7 @@ TEST_CASE_METHOD(HistoryTests, "History publish queueing",
     auto initLedger = app.getLedgerManager().getLastClosedLedgerNum();
     auto app2 =
         catchupNewApplication(initLedger, Config::TESTDB_IN_MEMORY_SQLITE,
-                              HistoryManager::CATCHUP_COMPLETE,
+                              CatchupManager::CATCHUP_COMPLETE,
                               std::string("Catchup to delayed history"));
     CHECK(app2->getLedgerManager().getLedgerNum() ==
           app.getLedgerManager().getLedgerNum());
@@ -713,7 +704,7 @@ TEST_CASE_METHOD(HistoryTests, "History prefix catchup",
     // First attempt catchup to 10, prefix of 64. Should round up to 64.
     // Should replay the 64th (since it gets externalized) and land on 65.
     apps.push_back(catchupNewApplication(
-        10, Config::TESTDB_IN_MEMORY_SQLITE, HistoryManager::CATCHUP_COMPLETE,
+        10, Config::TESTDB_IN_MEMORY_SQLITE, CatchupManager::CATCHUP_COMPLETE,
         std::string("Catchup to prefix of published history")));
     uint32_t freq = apps.back()->getHistoryManager().getCheckpointFrequency();
     CHECK(apps.back()->getLedgerManager().getLedgerNum() == freq + 1);
@@ -722,7 +713,7 @@ TEST_CASE_METHOD(HistoryTests, "History prefix catchup",
     // Should replay the 64th (since it gets externalized) and land on 129.
     apps.push_back(catchupNewApplication(
         freq + 10, Config::TESTDB_IN_MEMORY_SQLITE,
-        HistoryManager::CATCHUP_COMPLETE,
+        CatchupManager::CATCHUP_COMPLETE,
         std::string("Catchup to second prefix of published history")));
     CHECK(apps.back()->getLedgerManager().getLedgerNum() == 2 * freq + 1);
 }
@@ -741,11 +732,11 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
     uint32_t initLedger = lm.getLastClosedLedgerNum();
 
     app2 = catchupNewApplication(initLedger, Config::TESTDB_IN_MEMORY_SQLITE,
-                                 HistoryManager::CATCHUP_COMPLETE,
+                                 CatchupManager::CATCHUP_COMPLETE,
                                  std::string("app2"));
 
     app3 = catchupNewApplication(initLedger, Config::TESTDB_IN_MEMORY_SQLITE,
-                                 HistoryManager::CATCHUP_MINIMAL,
+                                 CatchupManager::CATCHUP_MINIMAL,
                                  std::string("app3"));
 
     CHECK(app2->getLedgerManager().getLedgerNum() == lm.getLedgerNum());
@@ -758,8 +749,8 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
 
         initLedger = lm.getLastClosedLedgerNum();
 
-        catchupApplication(initLedger, HistoryManager::CATCHUP_COMPLETE, app2);
-        catchupApplication(initLedger, HistoryManager::CATCHUP_MINIMAL, app3);
+        catchupApplication(initLedger, CatchupManager::CATCHUP_COMPLETE, app2);
+        catchupApplication(initLedger, CatchupManager::CATCHUP_MINIMAL, app3);
 
         CHECK(app2->getLedgerManager().getLedgerNum() == lm.getLedgerNum());
         CHECK(app3->getLedgerManager().getLedgerNum() == lm.getLedgerNum());
@@ -785,20 +776,20 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
     bool caughtup = false;
     initLedger = lm.getLastClosedLedgerNum();
 
-    caughtup = catchupApplication(initLedger, HistoryManager::CATCHUP_COMPLETE,
+    caughtup = catchupApplication(initLedger, CatchupManager::CATCHUP_COMPLETE,
                                   app2, true);
     CHECK(!caughtup);
-    caughtup = catchupApplication(initLedger, HistoryManager::CATCHUP_MINIMAL,
+    caughtup = catchupApplication(initLedger, CatchupManager::CATCHUP_MINIMAL,
                                   app3, true);
     CHECK(!caughtup);
 
     // Now complete this publish cycle and confirm that the stalled apps
     // will catch up.
     generateAndPublishHistory(1);
-    caughtup = catchupApplication(initLedger, HistoryManager::CATCHUP_COMPLETE,
+    caughtup = catchupApplication(initLedger, CatchupManager::CATCHUP_COMPLETE,
                                   app2, false);
     CHECK(caughtup);
-    caughtup = catchupApplication(initLedger, HistoryManager::CATCHUP_MINIMAL,
+    caughtup = catchupApplication(initLedger, CatchupManager::CATCHUP_MINIMAL,
                                   app3, false);
     CHECK(caughtup);
 }
@@ -862,7 +853,16 @@ TEST_CASE_METHOD(HistoryTests, "Repair missing buckets fails",
 
     while (app2->getProcessManager().getNumRunningProcesses() != 0)
     {
-        app2->getClock().crank(false);
+        try
+        {
+            app2->getClock().crank(false);
+        }
+        catch (...)
+        {
+            // see https://github.com/stellar/stellar-core/issues/1250
+            // we expect to get "Unable to restore last-known ledger state"
+            // several more times
+        }
     }
 }
 
@@ -908,7 +908,7 @@ TEST_CASE_METHOD(S3HistoryTests, "Publish/catchup via s3", "[hide][s3]")
     generateAndPublishInitialHistory(3);
     auto app2 = catchupNewApplication(
         app.getLedgerManager().getCurrentLedgerHeader().ledgerSeq,
-        Config::TESTDB_IN_MEMORY_SQLITE, HistoryManager::CATCHUP_COMPLETE,
+        Config::TESTDB_IN_MEMORY_SQLITE, CatchupManager::CATCHUP_COMPLETE,
         "s3");
 }
 
@@ -996,7 +996,7 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
     // Catch up successfully the first time
     auto app2 = catchupNewApplication(
         app.getLedgerManager().getCurrentLedgerHeader().ledgerSeq,
-        Config::TESTDB_IN_MEMORY_SQLITE, HistoryManager::CATCHUP_COMPLETE,
+        Config::TESTDB_IN_MEMORY_SQLITE, CatchupManager::CATCHUP_COMPLETE,
         "app2");
 
     // Now generate a little more history
@@ -1007,7 +1007,7 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
 
     // Now start a catchup on that _fails_ due to a gap
     LOG(INFO) << "Starting BROKEN catchup (with gap) from " << init;
-    caughtup = catchupApplication(init, HistoryManager::CATCHUP_COMPLETE, app2,
+    caughtup = catchupApplication(init, CatchupManager::CATCHUP_COMPLETE, app2,
                                   true, init + 10);
 
     assert(!caughtup);
@@ -1019,7 +1019,7 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
 
     // And catchup successfully
     init = app.getLedgerManager().getLastClosedLedgerNum();
-    caughtup = catchupApplication(init, HistoryManager::CATCHUP_COMPLETE, app2);
+    caughtup = catchupApplication(init, CatchupManager::CATCHUP_COMPLETE, app2);
     assert(caughtup);
 }
 
@@ -1030,7 +1030,7 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
 TEST_CASE_METHOD(HistoryTests, "Catchup recent", "[history][catchuprecent]")
 {
     auto dbMode = Config::TESTDB_IN_MEMORY_SQLITE;
-    auto catchupMode = HistoryManager::CATCHUP_RECENT;
+    auto catchupMode = CatchupManager::CATCHUP_RECENT;
     std::vector<Application::pointer> apps;
 
     generateAndPublishInitialHistory(3);
@@ -1059,7 +1059,7 @@ TEST_CASE_METHOD(HistoryTests, "Catchup recent", "[history][catchuprecent]")
 
     for (auto a : apps)
     {
-        catchupApplication(initLedger, HistoryManager::CATCHUP_RECENT, a);
+        catchupApplication(initLedger, CatchupManager::CATCHUP_RECENT, a);
     }
 
     // Now push network along a _lot_ futher along see that they can all still
@@ -1069,7 +1069,7 @@ TEST_CASE_METHOD(HistoryTests, "Catchup recent", "[history][catchuprecent]")
 
     for (auto a : apps)
     {
-        catchupApplication(initLedger, HistoryManager::CATCHUP_RECENT, a);
+        catchupApplication(initLedger, CatchupManager::CATCHUP_RECENT, a);
     }
 }
 

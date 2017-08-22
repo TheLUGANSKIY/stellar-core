@@ -16,6 +16,11 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "history/HistoryManager.h"
+#include "invariant/CacheIsConsistentWithDatabase.h"
+#include "invariant/ChangedAccountsSubnetriesCountIsValid.h"
+#include "invariant/Invariant.h"
+#include "invariant/Invariants.h"
+#include "invariant/TotalCoinsEqualsBalancesPlusFeePool.h"
 #include "ledger/LedgerManager.h"
 #include "main/CommandHandler.h"
 #include "main/ExternalQueue.h"
@@ -92,7 +97,9 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mLedgerManager = LedgerManager::create(*this);
     mHerder = Herder::create(*this);
     mBucketManager = BucketManager::create(*this);
+    mCatchupManager = CatchupManager::create(*this);
     mHistoryManager = HistoryManager::create(*this);
+    mInvariants = make_unique<Invariants>(enabledInvariants());
     mProcessManager = ProcessManager::create(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
     mWorkManager = WorkManager::create(*this);
@@ -279,8 +286,8 @@ ApplicationImpl::start()
             auto npub = mHistoryManager->publishQueuedHistory();
             if (npub != 0)
             {
-                CLOG(INFO, "Ledger") << "Restarted publishing " << npub
-                                     << " queued snapshots";
+                CLOG(INFO, "Ledger")
+                    << "Restarted publishing " << npub << " queued snapshots";
             }
             if (mConfig.FORCE_SCP)
             {
@@ -517,14 +524,12 @@ ApplicationImpl::syncOwnMetrics()
     // Flush crypto pure-global-cache stats. They don't belong
     // to a single app instance but first one to flush will claim
     // them.
-    uint64_t vhit = 0, vmiss = 0, vignore = 0;
-    PubKeyUtils::flushVerifySigCacheCounts(vhit, vmiss, vignore);
+    uint64_t vhit = 0, vmiss = 0;
+    PubKeyUtils::flushVerifySigCacheCounts(vhit, vmiss);
     mMetrics->NewMeter({"crypto", "verify", "hit"}, "signature").Mark(vhit);
     mMetrics->NewMeter({"crypto", "verify", "miss"}, "signature").Mark(vmiss);
-    mMetrics->NewMeter({"crypto", "verify", "ignore"}, "signature")
-        .Mark(vignore);
     mMetrics->NewMeter({"crypto", "verify", "total"}, "signature")
-        .Mark(vhit + vmiss + vignore);
+        .Mark(vhit + vmiss);
 
     // Similarly, flush global process-table stats.
     mMetrics->NewCounter({"process", "memory", "handles"})
@@ -557,6 +562,12 @@ ApplicationImpl::getBucketManager()
     return *mBucketManager;
 }
 
+CatchupManager&
+ApplicationImpl::getCatchupManager()
+{
+    return *mCatchupManager;
+}
+
 HistoryManager&
 ApplicationImpl::getHistoryManager()
 {
@@ -575,6 +586,12 @@ ApplicationImpl::getHerder()
     return *mHerder;
 }
 
+Invariants&
+ApplicationImpl::getInvariants()
+{
+    return *mInvariants;
+}
+
 OverlayManager&
 ApplicationImpl::getOverlayManager()
 {
@@ -582,7 +599,7 @@ ApplicationImpl::getOverlayManager()
 }
 
 Database&
-ApplicationImpl::getDatabase()
+ApplicationImpl::getDatabase() const
 {
     return *mDatabase;
 }
@@ -621,5 +638,27 @@ asio::io_service&
 ApplicationImpl::getWorkerIOService()
 {
     return mWorkerIOService;
+}
+
+std::vector<std::unique_ptr<Invariant>>
+ApplicationImpl::enabledInvariants() const
+{
+    auto result = std::vector<std::unique_ptr<Invariant>>{};
+    if (mConfig.INVARIANT_CHECK_BALANCE)
+    {
+        result.push_back(
+            make_unique<TotalCoinsEqualsBalancesPlusFeePool>(getDatabase()));
+    }
+    if (mConfig.INVARIANT_CHECK_ACCOUNT_SUBENTRY_COUNT)
+    {
+        result.push_back(
+            make_unique<ChangedAccountsSubnetriesCountIsValid>(getDatabase()));
+    }
+    if (mConfig.INVARIANT_CHECK_CACHE_CONSISTENT_WITH_DATABASE)
+    {
+        result.push_back(
+            make_unique<CacheIsConsistentWithDatabase>(getDatabase()));
+    }
+    return result;
 }
 }

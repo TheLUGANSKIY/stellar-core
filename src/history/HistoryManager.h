@@ -184,25 +184,6 @@ struct StateSnapshot;
 class HistoryManager
 {
   public:
-    // The two supported styles of catchup. CATCHUP_COMPLETE will replay all
-    // history blocks, from the last closed ledger to the present, when catching
-    // up; CATCHUP_MINIMAL will attempt to "fast forward" to the next BucketList
-    // checkpoint, skipping the history log that happened between the last
-    // closed ledger and the catchup point. This is set by config, default is
-    // CATCHUP_MINIMAL but it should be CATCHUP_COMPLETE for any server with
-    // API clients. See LedgerManager::startCatchUp and its callers for uses.
-    //
-    // CATCHUP_RECENT is a hybrid mode that does a CATCHUP_MINIMAL to a point
-    // in the recent past, then runs CATCHUP_COMPLETE from there forward to
-    // the present.
-    enum CatchupMode
-    {
-        CATCHUP_COMPLETE,
-        CATCHUP_MINIMAL,
-        CATCHUP_RECENT,
-        CATCHUP_BUCKET_REPAIR
-    };
-
     // Status code returned from LedgerManager::verifyCatchupCandidate. The
     // HistoryManager's catchup algorithm downloads _untrusted_ history from a
     // configured history archive, then (once it has done internal consistency
@@ -215,9 +196,12 @@ class HistoryManager
     // definitely part of the consensus history chain (i.e. the ledger hash
     // matches the consensus for the provided ledger number); VERIFY_HASH_BAD if
     // the proposed ledger is definitely _not_ valid (i.e. if it has a different
-    // hash than the consensus ledger with its number); or VERIFY_HASH_UNKNOWN
-    // if the network consensus has not yet advanced to the proposed catchup
-    // target.
+    // hash than the consensus ledger with its number);
+    // VERIFY_HASH_UNKNOWN_RECOVERABLE if the network consensus has not
+    // yet advanced to the proposed catchup target and
+    // VERIFY_HASH_UNKNOWN_UNRECOVERABLE if proposed target ledger was not
+    // received from network and next ledgers were received (so the probability
+    // of receiving it is extremaly low).
     //
     // In the first case, catchup will proceed; in the second it will fail (and
     // restart, possibly against a different untrusted history archive); in the
@@ -226,7 +210,8 @@ class HistoryManager
     {
         VERIFY_HASH_OK,
         VERIFY_HASH_BAD,
-        VERIFY_HASH_UNKNOWN
+        VERIFY_HASH_UNKNOWN_RECOVERABLE,
+        VERIFY_HASH_UNKNOWN_UNRECOVERABLE
     };
 
     // Select any readable history archive. If there are more than one,
@@ -325,29 +310,9 @@ class HistoryManager
     // later.
     virtual void historyPublished(uint32_t ledgerSeq, bool success) = 0;
 
-    // Callback from catchup, indicates that any catchup work is done.
-    virtual void historyCaughtup() = 0;
-
     virtual void downloadMissingBuckets(
         HistoryArchiveState desiredState,
         std::function<void(asio::error_code const& ec)> handler) = 0;
-
-    // Run catchup, we've just heard `initLedger` from the network. Mode can be
-    // CATCHUP_COMPLETE, meaning replay history from last to present, or
-    // CATCHUP_MINIMAL, meaning snap to the next state possible and discard
-    // history. See larger comment above for more detail.
-    //
-    // The `manualCatchup` flag modifies catchup behavior to avoid rounding up
-    // to the next scheduled checkpoint boundary, instead catching up to a
-    // checkpoint presumed to have been made at `initLedger` (i.e. with
-    // checkpoint ledger number equal to initLedger-1). This 'manual' catchup
-    // mode exists to support catching-up to manually created checkpoints.
-    virtual void catchupHistory(
-        uint32_t initLedger, CatchupMode mode,
-        std::function<void(asio::error_code const& ec, CatchupMode mode,
-                           LedgerHeaderHistoryEntry const& lastClosed)>
-            handler,
-        bool manualCatchup = false) = 0;
 
     // Return the HistoryArchiveState of the LedgerManager's LCL
     virtual HistoryArchiveState getLastClosedHistoryArchiveState() const = 0;
@@ -387,15 +352,6 @@ class HistoryManager
 
     // Return the number of checkpoints that failed publication.
     virtual uint64_t getPublishFailureCount() = 0;
-
-    // Return the number of times the process has commenced catchup.
-    virtual uint64_t getCatchupStartCount() = 0;
-
-    // Return the number of times the catchup has completed successfully.
-    virtual uint64_t getCatchupSuccessCount() = 0;
-
-    // Return the number of times the catchup has failed.
-    virtual uint64_t getCatchupFailureCount() = 0;
 
     virtual ~HistoryManager(){};
 };

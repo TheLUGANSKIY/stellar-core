@@ -12,11 +12,14 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
-#include "history/FileTransferInfo.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryManagerImpl.h"
-#include "history/HistoryWork.h"
 #include "history/StateSnapshot.h"
+#include "historywork/FetchRecentQsetsWork.h"
+#include "historywork/GetHistoryArchiveStateWork.h"
+#include "historywork/PublishWork.h"
+#include "historywork/PutHistoryArchiveStateWork.h"
+#include "historywork/RepairMissingBucketsWork.h"
 #include "ledger/LedgerManager.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
@@ -30,6 +33,7 @@
 #include "util/StatusManager.h"
 #include "util/TmpDir.h"
 #include "util/make_unique.h"
+#include "work/WorkManager.h"
 #include "xdrpp/marshal.h"
 
 #include <fstream>
@@ -208,7 +212,6 @@ HistoryManagerImpl::HistoryManagerImpl(Application& app)
     : mApp(app)
     , mWorkDir(nullptr)
     , mPublishWork(nullptr)
-    , mCatchupWork(nullptr)
 
     , mPublishSkip(
           app.getMetrics().NewMeter({"history", "publish", "skip"}, "event"))
@@ -222,12 +225,6 @@ HistoryManagerImpl::HistoryManagerImpl(Application& app)
           app.getMetrics().NewMeter({"history", "publish", "success"}, "event"))
     , mPublishFailure(
           app.getMetrics().NewMeter({"history", "publish", "failure"}, "event"))
-    , mCatchupStart(
-          app.getMetrics().NewMeter({"history", "catchup", "start"}, "event"))
-    , mCatchupSuccess(
-          app.getMetrics().NewMeter({"history", "catchup", "success"}, "event"))
-    , mCatchupFailure(
-          app.getMetrics().NewMeter({"history", "catchup", "failure"}, "event"))
 {
 }
 
@@ -283,13 +280,14 @@ HistoryManagerImpl::nextCheckpointCatchupProbe(uint32_t ledger)
 void
 HistoryManagerImpl::logAndUpdateStatus(bool contiguous)
 {
+    auto catchupStatus = mApp.getCatchupManager().getStatus();
     std::stringstream stateStr;
-    if (mCatchupWork)
+    if (!catchupStatus.empty())
     {
         stateStr << "Catching up"
                  << (contiguous ? ""
                                 : " (discontiguous; will fail and restart)")
-                 << ": " << mCatchupWork->getStatus();
+                 << ": " << catchupStatus;
     }
     else if (mPublishWork)
     {
@@ -299,7 +297,7 @@ HistoryManagerImpl::logAndUpdateStatus(bool contiguous)
                  << getMaxLedgerQueuedToPublish() << "]"
                  << ": " << mPublishWork->getStatus();
     }
-    if (mCatchupWork || mPublishWork)
+    if (!catchupStatus.empty() || mPublishWork)
     {
         auto current = stateStr.str();
         auto existing =
@@ -628,12 +626,6 @@ HistoryManagerImpl::historyPublished(uint32_t ledgerSeq, bool success)
 }
 
 void
-HistoryManagerImpl::historyCaughtup()
-{
-    mCatchupWork.reset();
-}
-
-void
 HistoryManagerImpl::downloadMissingBuckets(
     HistoryArchiveState desiredState,
     std::function<void(asio::error_code const& ec)> handler)
@@ -641,56 +633,6 @@ HistoryManagerImpl::downloadMissingBuckets(
     CLOG(INFO, "History") << "Starting RepairMissingBucketsWork";
     mApp.getWorkManager().addWork<RepairMissingBucketsWork>(desiredState,
                                                             handler);
-    mApp.getWorkManager().advanceChildren();
-}
-
-void
-HistoryManagerImpl::catchupHistory(
-    uint32_t initLedger, CatchupMode mode,
-    std::function<void(asio::error_code const& ec, CatchupMode mode,
-                       LedgerHeaderHistoryEntry const& lastClosed)>
-        handler,
-    bool manualCatchup)
-{
-    // To repair buckets, call `downloadMissingBuckets()` instead.
-    assert(mode != CATCHUP_BUCKET_REPAIR);
-
-    if (mCatchupWork)
-    {
-        throw std::runtime_error("Catchup already in progress");
-    }
-
-    mCatchupStart.Mark();
-
-    // Avoid CATCHUP_RECENT if it's going to actually try to revert
-    // us to an earlier state of the ledger than the LCL; in that case
-    // we're close enough to the network to just run CATCHUP_COMPLETE.
-    auto lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
-    if (mode == CATCHUP_RECENT && (initLedger > lcl.header.ledgerSeq) &&
-        (initLedger - lcl.header.ledgerSeq) <= mApp.getConfig().CATCHUP_RECENT)
-    {
-        mode = HistoryManager::CATCHUP_COMPLETE;
-    }
-
-    if (mode == CATCHUP_MINIMAL)
-    {
-        CLOG(INFO, "History") << "Starting CatchupMinimalWork";
-        mCatchupWork = mApp.getWorkManager().addWork<CatchupMinimalWork>(
-            initLedger, manualCatchup, handler);
-    }
-    else if (mode == CATCHUP_RECENT)
-    {
-        CLOG(INFO, "History") << "Starting CatchupRecentWork";
-        mCatchupWork = mApp.getWorkManager().addWork<CatchupRecentWork>(
-            initLedger, manualCatchup, handler);
-    }
-    else
-    {
-        assert(mode == CATCHUP_COMPLETE);
-        CLOG(INFO, "History") << "Starting CatchupCompleteWork";
-        mCatchupWork = mApp.getWorkManager().addWork<CatchupCompleteWork>(
-            initLedger, manualCatchup, handler);
-    }
     mApp.getWorkManager().advanceChildren();
 }
 
@@ -728,23 +670,5 @@ uint64_t
 HistoryManagerImpl::getPublishFailureCount()
 {
     return mPublishFailure.count();
-}
-
-uint64_t
-HistoryManagerImpl::getCatchupStartCount()
-{
-    return mCatchupStart.count();
-}
-
-uint64_t
-HistoryManagerImpl::getCatchupSuccessCount()
-{
-    return mCatchupSuccess.count();
-}
-
-uint64_t
-HistoryManagerImpl::getCatchupFailureCount()
-{
-    return mCatchupFailure.count();
 }
 }

@@ -53,7 +53,7 @@ public:
     void accumulate(T const & t) { get_query_stream() << t; }
 
 protected:
-    // this function allows to break the circular dependenc
+    // this function allows to break the circular dependence
     // between session and this class
     std::ostringstream & get_query_stream();
 

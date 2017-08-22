@@ -13,7 +13,7 @@ ManageOfferOpHolder::ManageOfferOpHolder(Operation const& op)
     mCreateOp.body.type(MANAGE_OFFER);
     auto& manageOffer = mCreateOp.body.manageOfferOp();
     auto const& createPassiveOp = op.body.createPassiveOfferOp();
-    manageOffer.amount = createPassiveOp.amount;
+	manageOffer.amount = createPassiveOp.amount;
     manageOffer.buying = createPassiveOp.buying;
     manageOffer.selling = createPassiveOp.selling;
     manageOffer.offerID = 0;

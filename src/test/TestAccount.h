@@ -6,6 +6,7 @@
 
 #include "crypto/SecretKey.h"
 #include "ledger/OfferFrame.h"
+#include "transactions/TransactionFrame.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
 
@@ -24,14 +25,18 @@ class TestAccount
   public:
     static TestAccount createRoot(Application& app);
 
-    explicit TestAccount(Application& app, SecretKey sk, SequenceNumber sn)
+    explicit TestAccount(Application& app, SecretKey sk, SequenceNumber sn = 0)
         : mApp(app), mSk{std::move(sk)}, mSn{sn}
     {
     }
 
+    TransactionFramePtr tx(std::vector<Operation> const& ops, SequenceNumber sn = 0);
+    Operation op(Operation operation);
+
     TestAccount create(SecretKey const& secretKey, uint64_t initialBalance);
     TestAccount create(std::string const& name, uint64_t initialBalance);
     void merge(PublicKey const& into);
+    void inflation();
 
     void changeTrust(Asset const& asset, int64_t limit);
     void allowTrust(Asset const& asset, PublicKey const& trustor);
@@ -53,8 +58,9 @@ class TestAccount
     createPassiveOffer(Asset const& selling, Asset const& buying,
                        Price const& price, int64_t amount,
                        ManageOfferEffect expectedEffect = MANAGE_OFFER_CREATED);
-    void pay(SecretKey const& destination, int64_t amount);
-    void pay(PublicKey const& destination, Asset const& selling,
+
+    void pay(PublicKey const& destination, int64_t amount);
+    void pay(PublicKey const& destination, Asset const& asset,
              int64_t amount);
     PathPaymentResult pay(PublicKey const& destination, Asset const& sendCur,
                           int64_t sendMax, Asset const& destCur,
@@ -80,20 +86,35 @@ class TestAccount
     {
         return getSecretKey().getPublicKey();
     }
-    SequenceNumber
-    getLastSequenceNumber() const
+
+    void
+    setSequenceNumber(SequenceNumber sn)
     {
+        mSn = sn;
+    }
+
+    SequenceNumber
+    getLastSequenceNumber()
+    {
+        updateSequenceNumber();
         return mSn;
     }
+
     SequenceNumber
     nextSequenceNumber()
     {
+        updateSequenceNumber();
         return ++mSn;
     }
+    SequenceNumber loadSequenceNumber() const;
+
+    int64_t getBalance() const;
 
   private:
     Application& mApp;
     SecretKey mSk;
     SequenceNumber mSn;
+
+    void updateSequenceNumber();
 };
 }
