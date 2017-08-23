@@ -8,6 +8,7 @@
 #include "database/Database.h"
 #include "ledger/AccountFrame.h"
 #include "ledger/DataFrame.h"
+#include "ledger/DebitFrame.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
@@ -37,6 +38,9 @@ EntryFrame::FromXDR(LedgerEntry const& from)
     case DATA:
         res = std::make_shared<DataFrame>(from);
         break;
+	case DEBIT:
+		res = std::make_shared<DebitFrame>(from);
+		break;
     }
     return res;
 }
@@ -73,6 +77,13 @@ EntryFrame::storeLoad(LedgerKey const& key, Database& db)
             DataFrame::loadData(data.accountID, data.dataName, db));
     }
     break;
+	case DEBIT:
+	{
+		auto const& debit = key.debit();
+		res = std::static_pointer_cast<EntryFrame>(
+			DebitFrame::loadDebit(debit.owner, debit.debitor, debit.asset, db));
+	}
+	break;
     }
     return res;
 }
@@ -211,6 +222,8 @@ EntryFrame::exists(Database& db, LedgerKey const& key)
         return OfferFrame::exists(db, key);
     case DATA:
         return DataFrame::exists(db, key);
+	case DEBIT:
+		return DebitFrame::exists(db, key);
     default:
         abort();
     }
@@ -233,6 +246,8 @@ EntryFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
     case DATA:
         DataFrame::storeDelete(delta, db, key);
         break;
+	case DEBIT:
+		DebitFrame::storeDelete(delta, db, key);
     }
 }
 
@@ -266,6 +281,13 @@ LedgerEntryKey(LedgerEntry const& e)
         k.data().accountID = d.data().accountID;
         k.data().dataName = d.data().dataName;
         break;
+
+	case DEBIT:
+		k.type(DEBIT);
+		k.debit().asset = d.debit().asset;
+		k.debit().debitor = d.debit().debitor;
+		k.debit().owner = d.debit().owner;
+		break;
     }
     return k;
 }

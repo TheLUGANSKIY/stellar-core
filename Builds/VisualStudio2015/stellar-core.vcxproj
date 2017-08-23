@@ -295,6 +295,7 @@
     <ClCompile Include="..\..\src\invariant\TotalCoinsEqualsBalancesPlusFeePool.cpp" />
     <ClCompile Include="..\..\src\ledger\AccountFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\DataFrame.cpp" />
+    <ClCompile Include="..\..\src\ledger\DebitFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerDelta.cpp" />
     <ClCompile Include="..\..\src\ledger\EntryFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerDeltaTests.cpp" />
@@ -529,6 +530,7 @@
     <ClInclude Include="..\..\src\invariant\TotalCoinsEqualsBalancesPlusFeePool.h" />
     <ClInclude Include="..\..\src\ledger\DataFrame.h" />
     <ClInclude Include="..\..\src\history\StateSnapshot.h" />
+    <ClInclude Include="..\..\src\ledger\DebitFrame.h" />
     <ClInclude Include="..\..\src\ledger\LedgerTestUtils.h" />
     <ClInclude Include="..\..\src\ledger\SyncingLedgerChain.h" />
     <ClInclude Include="..\..\src\main\ExternalQueue.h" />
