@@ -64,12 +64,14 @@ DebitFrame::getKeyFields(LedgerKey const& key, std::string& ownerStrKey,
 		issuerStrKey =
 			KeyUtils::toStrKey(key.debit().asset.alphaNum4().issuer);
 		assetCodeToStr(key.debit().asset.alphaNum4().assetCode, assetCode);
+		return;
 	}
 	else if (key.debit().asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
 	{
 		issuerStrKey =
 			KeyUtils::toStrKey(key.debit().asset.alphaNum12().issuer);
 		assetCodeToStr(key.debit().asset.alphaNum12().assetCode, assetCode);
+		return;
 	}
 }
 
@@ -184,8 +186,8 @@ DebitFrame::storeAdd(LedgerDelta& delta, Database& db)
 	touch(delta);
 
 	std::string ownerStrKey, debitorStrKey, issuerStrKey, assetCode;
-	unsigned int assetType = getKey().debit().asset.type();
 	getKeyFields(key, ownerStrKey, debitorStrKey, issuerStrKey, assetCode);
+	unsigned int assetType = getKey().debit().asset.type();
 
 	auto prep = db.getPreparedStatement(
 		"INSERT INTO debits "
@@ -228,15 +230,16 @@ DebitFrame::loadDebit(AccountID const& owner, AccountID const& debitor, Asset co
 	if (cachedEntryExists(key, db))
 	{
 		auto p = getCachedEntry(key, db);
-		if (p)
+		if (!p)
 		{
-			pointer ret = std::make_shared<DebitFrame>(*p);
-			if (delta)
-			{
-				delta->recordEntry(*ret);
-			}
-			return ret;
+			return nullptr;
 		}
+		pointer ret = std::make_shared<DebitFrame>(*p);
+		if (delta)
+		{
+			delta->recordEntry(*ret);
+		}
+		return ret;
 	}
 
 	std::string ownerStr, debitorStr, issuerStr, assetStr;
