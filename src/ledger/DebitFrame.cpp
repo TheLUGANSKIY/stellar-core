@@ -167,6 +167,7 @@ DebitFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
 void
 DebitFrame::storeChange(LedgerDelta& delta, Database& db)
 {
+	throw std::runtime_error("DebitFrame is unchangeable object");
 }
 
 void
