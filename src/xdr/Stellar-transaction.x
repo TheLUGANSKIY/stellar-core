@@ -25,7 +25,8 @@ enum OperationType
     ALLOW_TRUST = 7,
     ACCOUNT_MERGE = 8,
     INFLATION = 9,
-    MANAGE_DATA = 10
+    MANAGE_DATA = 10,
+	MANAGE_DEBIT = 11
 };
 
 /* CreateAccount
@@ -221,6 +222,22 @@ struct ManageDataOp
     DataValue* dataValue;   // set to null to clear
 };
 
+/* ManageDebit
+    Creates or Deletes a debit.
+
+    Threshold: med
+
+    Result: ManageDebitResult
+*/
+
+struct ManageDebitOp
+{
+	AccountID debitor; // the account which will use this debit
+    Asset asset;
+
+	bool toDelete; // if true, delete the debit
+};
+
 /* An operation is the lowest unit of work that a transaction does */
 struct Operation
 {
@@ -253,6 +270,8 @@ struct Operation
         void;
     case MANAGE_DATA:
         ManageDataOp manageDataOp;
+	case MANAGE_DEBIT:
+		ManageDebitOp manageDebitOp;
     }
     body;
 };
@@ -646,6 +665,29 @@ default:
     void;
 };
 
+/******* ManageDebit Result ********/
+
+enum ManageDebitResultCode
+{
+    // codes considered as "success" for the operation
+    MANAGE_DEBIT_SUCCESS = 0,
+    // codes considered as "failure" for the operation
+    MANAGE_DEBIT_MALFORMED = -1,        // bad input
+    MANAGE_DEBIT_NO_DEBITOR = -2,       // could not find debitor
+    MANAGE_DEBIT_NO_ISSUER = -3,        // could not find issuer
+    MANAGE_DEBIT_NO_TRUST = -4,         // no trustline for what we're debiting
+    MANAGE_DEBIT_SELF_NOT_ALLOWED = -5, // debiting self is not allowed
+	MANAGE_DEBIT_NOT_FOUND = -6         // debit is not found
+};
+
+union ManageDebitResult switch (ManageDebitResultCode code)
+{
+case MANAGE_DEBIT_SUCCESS:
+    void;
+default:
+    void;
+};
+
 /* High level Operation Result */
 
 enum OperationResultCode
@@ -683,6 +725,8 @@ case opINNER:
         InflationResult inflationResult;
     case MANAGE_DATA:
         ManageDataResult manageDataResult;
+	case MANAGE_DEBIT:
+		ManageDebitResult manageDebitResult;
     }
     tr;
 default:
