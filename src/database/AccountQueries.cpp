@@ -33,6 +33,7 @@ numberOfSubentries(AccountID const& accountID, Database& db)
     auto query = std::string{R"(
         SELECT numsubentries,
               (SELECT COUNT(*) FROM trustlines WHERE accountid = :id)
+			+ (SELECT COUNT(*) FROM debits WHERE owner = :id)
             + (SELECT COUNT(*) FROM offers WHERE sellerid = :id)
             + (SELECT COUNT(*) FROM accountdata WHERE accountid = :id)
             + (SELECT COUNT(*) FROM signers WHERE accountid = :id)

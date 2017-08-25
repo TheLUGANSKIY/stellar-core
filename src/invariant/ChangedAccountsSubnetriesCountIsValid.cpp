@@ -29,6 +29,8 @@ getAccount(LedgerEntry const& entry)
         return d.offer().sellerID;
     case DATA:
         return d.data().accountID;
+	case DEBIT:
+		return d.debit().owner;
     default:
         assert(false);
     }
@@ -47,6 +49,8 @@ getAccount(LedgerKey const& key)
         return key.offer().sellerID;
     case DATA:
         return key.data().accountID;
+	case DEBIT:
+		return key.debit().owner;
     default:
         assert(false);
     }

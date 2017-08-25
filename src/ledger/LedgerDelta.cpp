@@ -358,6 +358,10 @@ LedgerDelta::markMeters(Application& app) const
                 .NewMeter({"ledger", "data", "add"}, "entry")
                 .Mark();
             break;
+		case DEBIT:
+			app.getMetrics()
+				.NewMeter({ "ledger", "debit", "add" }, "entry")
+				.Mark();
         }
     }
 
@@ -385,6 +389,10 @@ LedgerDelta::markMeters(Application& app) const
                 .NewMeter({"ledger", "data", "modify"}, "entry")
                 .Mark();
             break;
+		case DEBIT:
+			app.getMetrics()
+				.NewMeter({ "ledger", "debit", "modify" }, "entry")
+				.Mark();
         }
     }
 
@@ -412,6 +420,10 @@ LedgerDelta::markMeters(Application& app) const
                 .NewMeter({"ledger", "data", "delete"}, "entry")
                 .Mark();
             break;
+		case DEBIT:
+			app.getMetrics()
+				.NewMeter({ "ledger", "debit", "delete" }, "entry")
+				.Mark();
         }
     }
 }

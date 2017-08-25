@@ -95,6 +95,12 @@ class LoadGenerator
         int64_t mLimit;
     };
 
+	struct DebitInfo
+	{
+		AccountInfoPtr mDebitor;
+		AccountInfoPtr mIssuer;
+	};
+
     struct AccountInfo : public std::enable_shared_from_this<AccountInfo>
     {
         AccountInfo(size_t id, SecretKey key, int64_t balance,
@@ -111,6 +117,9 @@ class LoadGenerator
 
         // Used when this account trusts some other account's credits.
         std::vector<TrustLineInfo> mTrustLines;
+
+		// Used when this account gives debits to other accounts
+		std::vector<DebitInfo> mDebits;
 
         // Asset issued, if a gateway, as well as reverse maps to
         // those accounts that trust this asset and those who are
@@ -136,6 +145,7 @@ class LoadGenerator
     {
         medida::Meter& mAccountCreated;
         medida::Meter& mTrustlineCreated;
+		medida::Meter& mDebitCreated;
         medida::Meter& mOfferCreated;
         medida::Meter& mPayment;
         medida::Meter& mNativePayment;
