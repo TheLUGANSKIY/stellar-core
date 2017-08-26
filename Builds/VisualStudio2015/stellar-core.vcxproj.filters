@@ -744,6 +744,9 @@
     <ClCompile Include="..\..\src\ledger\DebitFrame.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\ManageDebitOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -1303,6 +1306,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\DebitFrame.h">
       <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\ManageDebitOpFrame.h">
+      <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

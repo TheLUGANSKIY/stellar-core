@@ -414,6 +414,7 @@
     <ClCompile Include="..\..\src\transactions\CreatePassiveOfferOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ManageDataOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ManageDataTests.cpp" />
+    <ClCompile Include="..\..\src\transactions\ManageDebitOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ManageOfferOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\InflationOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\InflationTests.cpp" />
@@ -613,6 +614,7 @@
     <ClInclude Include="..\..\src\transactions\CreateAccountOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\CreatePassiveOfferOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ManageDataOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\ManageDebitOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ManageOfferOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\InflationOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\MergeOpFrame.h" />

@@ -674,10 +674,10 @@ enum ManageDebitResultCode
     // codes considered as "failure" for the operation
     MANAGE_DEBIT_MALFORMED = -1,        // bad input
     MANAGE_DEBIT_NO_DEBITOR = -2,       // could not find debitor
-    MANAGE_DEBIT_NO_ISSUER = -3,        // could not find issuer
-    MANAGE_DEBIT_NO_TRUST = -4,         // no trustline for what we're debiting
-    MANAGE_DEBIT_SELF_NOT_ALLOWED = -5, // debiting self is not allowed
-	MANAGE_DEBIT_NOT_FOUND = -6         // debit is not found
+    MANAGE_DEBIT_NO_TRUST = -3,         // no trustline for asset we're trying to debit
+	MANAGE_DEBIT_NOT_FOUND = -4,        // debit is not found
+	MANAGE_DEBIT_ALREADY_EXISTS = -5,   // debit already exists
+	MANAGE_DEBIT_LOW_RESERVE = -6       // not enough funds to create a new Debit Entry
 };
 
 union ManageDebitResult switch (ManageDebitResultCode code)
