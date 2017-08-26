@@ -153,6 +153,12 @@ TestAccount::manageData(std::string const& name, DataValue* value)
     }
 }
 
+void
+TestAccount::manageDebit(PublicKey const& debitor, Asset const& asset, bool toDelete)
+{
+	applyTx(tx({ txtest::manageDebit(debitor, asset, toDelete) }), mApp);
+}
+
 OfferFrame::pointer
 TestAccount::loadOffer(uint64_t offerID) const
 {
