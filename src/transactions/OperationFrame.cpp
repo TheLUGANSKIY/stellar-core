@@ -13,6 +13,7 @@
 #include "transactions/CreatePassiveOfferOpFrame.h"
 #include "transactions/InflationOpFrame.h"
 #include "transactions/ManageDataOpFrame.h"
+#include "transactions/ManageDebitOpFrame.h"
 #include "transactions/ManageOfferOpFrame.h"
 #include "transactions/MergeOpFrame.h"
 #include "transactions/PathPaymentOpFrame.h"
@@ -81,6 +82,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return shared_ptr<OperationFrame>(new InflationOpFrame(op, res, tx));
     case MANAGE_DATA:
         return shared_ptr<OperationFrame>(new ManageDataOpFrame(op, res, tx));
+	case MANAGE_DEBIT:
+		return shared_ptr<OperationFrame>(new ManageDebitOpFrame(op, res, tx));
 
     default:
         ostringstream err;

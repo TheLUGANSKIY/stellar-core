@@ -261,6 +261,30 @@ throwIf(ManageDataResult const& result)
 }
 
 void
+throwIf(ManageDebitResult const& result)
+{
+	switch (result.code())
+	{
+	case MANAGE_DEBIT_MALFORMED:
+		throw ex_MANAGE_DEBIT_MALFORMED{};
+	case MANAGE_DEBIT_NO_DEBITOR:
+		throw ex_MANAGE_DEBIT_NO_DEBITOR{};
+	case MANAGE_DEBIT_NO_TRUST:
+		throw ex_MANAGE_DEBIT_NO_TRUST{};
+	case MANAGE_DEBIT_NOT_FOUND:
+		throw ex_MANAGE_DEBIT_NOT_FOUND{};
+	case MANAGE_DEBIT_ALREADY_EXISTS:
+		throw ex_MANAGE_DEBIT_ALREADY_EXISTS{};
+	case MANAGE_DEBIT_LOW_RESERVE:
+		throw ex_MANAGE_DEBIT_LOW_RESERVE{};
+	case MANAGE_DEBIT_SUCCESS:
+		break;
+	default:
+		throw ex_UNKNOWN();
+	}
+}
+
+void
 throwIf(TransactionResult const& result)
 {
     switch (result.result.code())
@@ -312,6 +336,9 @@ throwIf(TransactionResult const& result)
     case MANAGE_DATA:
         throwIf(opResult.tr().manageDataResult());
         break;
+	case MANAGE_DEBIT:
+		throwIf(opResult.tr().manageDebitResult());
+		break;
     }
 }
 

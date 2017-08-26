@@ -19,6 +19,7 @@
 #include "transactions/CreateAccountOpFrame.h"
 #include "transactions/InflationOpFrame.h"
 #include "transactions/ManageDataOpFrame.h"
+#include "transactions/ManageDebitOpFrame.h"
 #include "transactions/ManageOfferOpFrame.h"
 #include "transactions/MergeOpFrame.h"
 #include "transactions/PathPaymentOpFrame.h"
@@ -601,6 +602,18 @@ manageData(std::string const& name, DataValue* value)
         op.body.manageDataOp().dataValue.activate() = *value;
 
     return op;
+}
+
+Operation
+manageDebit(PublicKey const& debitor, Asset const& asset, bool toDelete)
+{
+	Operation op;
+	op.body.type(MANAGE_DEBIT);
+	op.body.manageDebitOp().debitor = debitor;
+	op.body.manageDebitOp().asset = asset;
+	op.body.manageDebitOp().toDelete = toDelete;
+
+	return op;
 }
 
 OperationFrame const&

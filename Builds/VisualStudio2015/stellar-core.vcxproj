@@ -415,6 +415,7 @@
     <ClCompile Include="..\..\src\transactions\ManageDataOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ManageDataTests.cpp" />
     <ClCompile Include="..\..\src\transactions\ManageDebitOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\ManageDebitTests.cpp" />
     <ClCompile Include="..\..\src\transactions\ManageOfferOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\InflationOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\InflationTests.cpp" />

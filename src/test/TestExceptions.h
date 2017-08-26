@@ -237,5 +237,24 @@ class ex_SET_OPTIONS_INVALID_HOME_DOMAIN
 class ex_INFLATION_NOT_TIME
 {
 };
+
+class ex_MANAGE_DEBIT_MALFORMED
+{
+};
+class ex_MANAGE_DEBIT_NO_DEBITOR
+{
+};
+class ex_MANAGE_DEBIT_NO_TRUST
+{
+};
+class ex_MANAGE_DEBIT_NOT_FOUND
+{
+};
+class ex_MANAGE_DEBIT_ALREADY_EXISTS
+{
+};
+class ex_MANAGE_DEBIT_LOW_RESERVE
+{
+};
 }
 }
