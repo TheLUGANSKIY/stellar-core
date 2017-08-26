@@ -54,7 +54,7 @@ DebitFrame::operator=(DebitFrame const& other)
 
 void
 DebitFrame::getKeyFields(LedgerKey const& key, std::string& ownerStrKey,
-						  std::string debitorStrKey,
+						  std::string& debitorStrKey,
 						  std::string& issuerStrKey, std::string& assetCode)
 {
 	ownerStrKey = KeyUtils::toStrKey(key.debit().owner);

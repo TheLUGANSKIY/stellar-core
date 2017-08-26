@@ -25,7 +25,7 @@ namespace stellar
 
 	private:
 		static void getKeyFields(LedgerKey const& key, std::string& ownerStrKey,
-								  std::string debitorStrKey, 
+								  std::string& debitorStrKey, 
 								  std::string& issuerStrKey, std::string& assetCode);
 
 		static void
