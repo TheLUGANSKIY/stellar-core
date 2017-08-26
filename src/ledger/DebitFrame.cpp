@@ -20,7 +20,8 @@ const char* DebitFrame::kSQLCreateStatement1 =
 	"debitor      VARCHAR(56)     NOT NULL,"
 	"assettype    INT             NOT NULL,"
 	"issuer       VARCHAR(56)     NOT NULL,"
-	"assetcode    VARCHAR(12)     NOT NULL,"
+	"assetcode	  VARCHAR(12)     NOT NULL,"
+	"lastmodified INT			  NOT NULL,"
 	"PRIMARY KEY  (owner, debitor, issuer, assetcode)"
 	");";
 
@@ -191,14 +192,15 @@ DebitFrame::storeAdd(LedgerDelta& delta, Database& db)
 
 	auto prep = db.getPreparedStatement(
 		"INSERT INTO debits "
-		"(owner, debitor, assettype, issuer, assetcode)"
-		"VALUES (:v1, :v2, :v3, :v4, :v5)");
+		"(owner, debitor, assettype, issuer, assetcode, lastmodified)"
+		"VALUES (:v1, :v2, :v3, :v4, :v5, :v6)");
 	auto& st = prep.statement();
 	st.exchange(use(ownerStrKey));
 	st.exchange(use(debitorStrKey));
 	st.exchange(use(assetType));
 	st.exchange(use(issuerStrKey));
 	st.exchange(use(assetCode));
+	st.exchange(use(getLastModified()));
 	st.define_and_bind();
 	{
 		auto timer = db.getInsertTimer("debit");
@@ -215,7 +217,7 @@ DebitFrame::storeAdd(LedgerDelta& delta, Database& db)
 
 static const char* debitColumnSelector =
 	"SELECT "
-	"owner, debitor, assettype, issuer, assetcode "
+	"owner, debitor, assettype, issuer, assetcode, lastmodified "
 	"FROM debits";
 
 DebitFrame::pointer
@@ -311,6 +313,7 @@ DebitFrame::loadDebits(StatementContext& prep,
 	st.exchange(into(assetType));
 	st.exchange(into(issuerStrKey));
 	st.exchange(into(assetCode));
+	st.exchange(into(le.lastModifiedLedgerSeq));
 	st.define_and_bind();
 
 	st.execute(true);
