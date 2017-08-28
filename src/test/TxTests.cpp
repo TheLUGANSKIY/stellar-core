@@ -17,6 +17,7 @@
 #include "transactions/AllowTrustOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/CreateAccountOpFrame.h"
+#include "transactions/DirectDebitOpFrame.h"
 #include "transactions/InflationOpFrame.h"
 #include "transactions/ManageDataOpFrame.h"
 #include "transactions/ManageDebitOpFrame.h"
@@ -612,6 +613,19 @@ manageDebit(PublicKey const& debitor, Asset const& asset, bool toDelete)
 	op.body.manageDebitOp().debitor = debitor;
 	op.body.manageDebitOp().asset = asset;
 	op.body.manageDebitOp().toDelete = toDelete;
+
+	return op;
+}
+
+Operation
+directDebit(PublicKey const& owner, PublicKey const& dest, Asset const& asset, int64_t amount)
+{
+	Operation op;
+	op.body.type(DIRECT_DEBIT);
+	op.body.directDebitOp().owner = owner;
+	op.body.directDebitOp().payWithDebit.destination = dest;
+	op.body.directDebitOp().payWithDebit.asset = asset;
+	op.body.directDebitOp().payWithDebit.amount = amount;
 
 	return op;
 }

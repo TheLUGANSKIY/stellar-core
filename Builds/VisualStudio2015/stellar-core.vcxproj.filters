@@ -750,6 +750,12 @@
     <ClCompile Include="..\..\src\transactions\ManageDebitTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\DirectDebitOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\DirectDebitTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -1311,6 +1317,9 @@
       <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\ManageDebitOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\DirectDebitOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>

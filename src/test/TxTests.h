@@ -81,6 +81,8 @@ Operation manageData(std::string const& name, DataValue* value);
 
 Operation manageDebit(PublicKey const& debitor, Asset const& asset, bool toDelete);
 
+Operation directDebit(PublicKey const& owner, PublicKey const& dest, Asset const& asset, int64_t amount);
+
 Operation createAccount(PublicKey const& dest, int64_t amount);
 
 Operation payment(PublicKey const& to, int64_t amount);

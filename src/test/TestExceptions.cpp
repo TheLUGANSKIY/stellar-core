@@ -285,6 +285,42 @@ throwIf(ManageDebitResult const& result)
 }
 
 void
+throwIf(DirectDebitResult const& result)
+{
+	switch (result.code())
+	{
+	case DIRECT_DEBIT_MALFORMED:
+		throw ex_DIRECT_DEBIT_MALFORMED{};
+	case DIRECT_DEBIT_NO_OWNER:
+		throw ex_DIRECT_DEBIT_NO_OWNER{};
+	case DIRECT_DEBIT_NO_DEBIT:
+		throw ex_DIRECT_DEBIT_NO_DEBIT{};
+	case DIRECT_DEBIT_UNDERFUNDED:
+		throw ex_DIRECT_DEBIT_UNDERFUNDED{};
+	case DIRECT_DEBIT_OWNER_UNDERFUNDED:
+		throw ex_DIRECT_DEBIT_OWNER_UNDERFUNDED{};
+	case DIRECT_DEBIT_OWNER_NO_TRUST:
+		throw ex_DIRECT_DEBIT_OWNER_NO_TRUST{};
+	case DIRECT_DEBIT_OWNER_NOT_AUTHORIZED:
+		throw ex_DIRECT_DEBIT_OWNER_NOT_AUTHORIZED{};
+	case DIRECT_DEBIT_NO_DESTINATION:
+		throw ex_DIRECT_DEBIT_NO_DESTINATION{};
+	case DIRECT_DEBIT_DESTINATION_NO_TRUST:
+		throw ex_DIRECT_DEBIT_DESTINATION_NO_TRUST{};
+	case DIRECT_DEBIT_DESTINATION_NOT_AUTHORIZED:
+		throw ex_DIRECT_DEBIT_DESTINATION_NOT_AUTHORIZED{};
+	case DIRECT_DEBIT_LINE_FULL:
+		throw ex_DIRECT_DEBIT_LINE_FULL{};
+	case DIRECT_DEBIT_NO_ISSUER:
+		throw ex_DIRECT_DEBIT_NO_ISSUER{};
+	case DIRECT_DEBIT_SUCCESS:
+		break;
+	default:
+		throw ex_UNKNOWN();
+	}
+}
+
+void
 throwIf(TransactionResult const& result)
 {
     switch (result.result.code())
@@ -338,6 +374,9 @@ throwIf(TransactionResult const& result)
         break;
 	case MANAGE_DEBIT:
 		throwIf(opResult.tr().manageDebitResult());
+		break;
+	case DIRECT_DEBIT:
+		throwIf(opResult.tr().directDebitResult());
 		break;
     }
 }

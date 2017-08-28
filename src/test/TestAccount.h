@@ -51,6 +51,8 @@ class TestAccount
 
 	void manageDebit(PublicKey const& debitor, Asset const& asset, bool toDelete);
 
+	void directDebit(PublicKey const& owner, PublicKey const& dest, Asset const& asset, int64_t amount);
+
     OfferFrame::pointer loadOffer(uint64_t offerID) const;
     bool hasOffer(uint64_t offerID) const;
     uint64_t

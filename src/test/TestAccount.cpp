@@ -159,6 +159,12 @@ TestAccount::manageDebit(PublicKey const& debitor, Asset const& asset, bool toDe
 	applyTx(tx({ txtest::manageDebit(debitor, asset, toDelete) }), mApp);
 }
 
+void
+TestAccount::directDebit(PublicKey const& owner, PublicKey const& dest, Asset const& asset, int64_t amount)
+{
+	applyTx(tx({ txtest::directDebit(owner, dest, asset, amount) }), mApp);
+}
+
 OfferFrame::pointer
 TestAccount::loadOffer(uint64_t offerID) const
 {
