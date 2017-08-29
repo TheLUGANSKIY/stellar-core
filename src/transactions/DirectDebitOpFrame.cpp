@@ -24,6 +24,12 @@ DirectDebitOpFrame::getFromPayment(medida::MetricsRegistry& metrics,
 {
 	switch (paymentResultCode)
 	{
+	case PAYMENT_MALFORMED:
+		metrics
+			.NewMeter({ "op-direct-debit", "failure", "payment-malformed" },
+						"operation")
+			.Mark();
+		return DIRECT_DEBIT_MALFORMED;
 	case PAYMENT_UNDERFUNDED:
 		metrics
 			.NewMeter({ "op-direct-debit", "failure", "owner-underfunded" },

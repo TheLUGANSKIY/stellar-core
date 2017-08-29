@@ -50,16 +50,27 @@ TEST_CASE("direct debit", "[tx][directdebit]")
 			debitor.directDebit(root, destination, idrCur, 500);
 		});
 	}
-	// TODO
-	/*SECTION("result codes check")
+	SECTION("result codes check")
 	{
 		auto paymentResultCodes = xdr::xdr_traits<PaymentResultCode>::enum_values();
 
 		for (int i = 0; i < paymentResultCodes.size(); ++i)
 		{
-			DirectDebitResultCode res = DirectDebitOpFrame::getFromPayment(app.getMetrics(), paymentResultCodes[i]);
+			if (xdr::xdr_traits<PaymentResultCode>::from_uint(paymentResultCodes[i]) == DIRECT_DEBIT_SUCCESS)
+			{
+				continue;
+			}
+			try
+			{
+				DirectDebitResultCode res = DirectDebitOpFrame::getFromPayment(app.getMetrics(), 
+						  xdr::xdr_traits<PaymentResultCode>::from_uint(paymentResultCodes[i]));
+			}
+			catch (std::runtime_error)
+			{
+				throw std::runtime_error("Not all payment result codes are handled by directDebitFrame");
+			}
 		}
-	}*/
+	}
 	SECTION("debit does not exist")
 	{
 		for_all_versions(app, [&] {
