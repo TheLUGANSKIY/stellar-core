@@ -65,7 +65,8 @@ enum LedgerEntryType
     ACCOUNT = 0,
     TRUSTLINE = 1,
     OFFER = 2,
-    DATA = 3
+    DATA = 3,
+	DEBIT = 4
 };
 
 struct Signer
@@ -211,6 +212,24 @@ struct DataEntry
     ext;
 };
 
+/* DebitEntry
+    Permission to debitor for using onwer balances (except native asset)
+*/
+struct DebitEntry
+{
+    AccountID owner; // account this debit belongs to
+	AccountID debitor; // account that use this debit
+    Asset asset;         // type of asset (with issuer)
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
+};
+
 
 struct LedgerEntry
 {
@@ -226,6 +245,8 @@ struct LedgerEntry
         OfferEntry offer;
     case DATA:
         DataEntry data;
+	case DEBIT:
+		DebitEntry debit;
     }
     data;
 

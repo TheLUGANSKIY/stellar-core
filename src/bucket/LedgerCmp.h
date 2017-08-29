@@ -19,6 +19,7 @@ using xdr::operator<;
  *   - The same type
  *     - If accounts, then with same accountID
  *     - If trustlines, then with same (accountID, asset) pair
+ *     - If debits, then with same (owner, debitor) pair
  *     - If offers, then with same (sellerID, sequence) pair
  *
  * Equivalently: Two LedgerEntries have the same 'identity' iff their
@@ -60,7 +61,16 @@ struct LedgerEntryIdCmp
                 return atl.asset < btl.asset;
             }
         }
-
+		case DEBIT:
+		{
+			auto const& adebit = a.debit();
+			auto const& bdebit = b.debit();
+			if (adebit.owner < bdebit.owner)
+				return true;
+			if (bdebit.owner < adebit.owner)
+				return false;
+			return adebit.debitor < bdebit.debitor;
+		}
         case OFFER:
         {
             auto const& aof = a.offer();

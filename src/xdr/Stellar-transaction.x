@@ -25,7 +25,9 @@ enum OperationType
     ALLOW_TRUST = 7,
     ACCOUNT_MERGE = 8,
     INFLATION = 9,
-    MANAGE_DATA = 10
+    MANAGE_DATA = 10,
+	MANAGE_DEBIT = 11,
+	DIRECT_DEBIT = 12
 };
 
 /* CreateAccount
@@ -221,6 +223,36 @@ struct ManageDataOp
     DataValue* dataValue;   // set to null to clear
 };
 
+/* ManageDebit
+    Creates or Deletes a debit.
+
+    Threshold: med
+
+    Result: ManageDebitResult
+*/
+
+struct ManageDebitOp
+{
+	AccountID debitor; // the account which will use this debit
+    Asset asset;
+
+	bool toDelete; // if true, delete the debit
+};
+
+/* DirectDebit
+    Allows to use existing debit for payment with other account's balance.
+
+    Threshold: med
+
+    Result: DirectDebitResult
+*/
+
+struct DirectDebitOp
+{
+	AccountID owner; // owner of the debit
+	PaymentOp payWithDebit; // operation for pay using debit
+};
+
 /* An operation is the lowest unit of work that a transaction does */
 struct Operation
 {
@@ -253,6 +285,10 @@ struct Operation
         void;
     case MANAGE_DATA:
         ManageDataOp manageDataOp;
+	case MANAGE_DEBIT:
+		ManageDebitOp manageDebitOp;
+	case DIRECT_DEBIT:
+		DirectDebitOp directDebitOp;
     }
     body;
 };
@@ -646,6 +682,58 @@ default:
     void;
 };
 
+/******* ManageDebit Result ********/
+
+enum ManageDebitResultCode
+{
+    // codes considered as "success" for the operation
+    MANAGE_DEBIT_SUCCESS = 0,
+    // codes considered as "failure" for the operation
+    MANAGE_DEBIT_MALFORMED = -1,        // bad input
+    MANAGE_DEBIT_NO_DEBITOR = -2,       // could not find debitor
+    MANAGE_DEBIT_NO_TRUST = -3,         // no trustline for asset we're trying to debit
+	MANAGE_DEBIT_NOT_FOUND = -4,        // debit is not found
+	MANAGE_DEBIT_ALREADY_EXISTS = -5,   // debit already exists
+	MANAGE_DEBIT_LOW_RESERVE = -6       // not enough funds to create a new Debit Entry
+};
+
+union ManageDebitResult switch (ManageDebitResultCode code)
+{
+case MANAGE_DEBIT_SUCCESS:
+    void;
+default:
+    void;
+};
+
+/******* DirectDebit Result ********/
+
+enum DirectDebitResultCode
+{
+    // codes considered as "success" for the operation
+    DIRECT_DEBIT_SUCCESS = 0,
+    // codes considered as "failure" for the operation
+    DIRECT_DEBIT_MALFORMED = -1,					// bad input
+    DIRECT_DEBIT_NO_OWNER = -2,						// could not find owner of the debit
+	DIRECT_DEBIT_NO_DEBIT = -3,						// could not find debit for this account and owner
+	DIRECT_DEBIT_UNDERFUNDED = -4,					// not enough funds in debitor account
+	DIRECT_DEBIT_OWNER_UNDERFUNDED = -5,			// not enough funds in owner account
+    DIRECT_DEBIT_OWNER_NO_TRUST = -6,				// no trust line on owner account
+    DIRECT_DEBIT_OWNER_NOT_AUTHORIZED = -7,			// owner not authorized to transfer
+    DIRECT_DEBIT_NO_DESTINATION = -8,				// destination account does not exist
+    DIRECT_DEBIT_DESTINATION_NO_TRUST = -9,			// destination missing a trust line for asset
+    DIRECT_DEBIT_DESTINATION_NOT_AUTHORIZED = -10,  // destination not authorized to hold asset
+    DIRECT_DEBIT_LINE_FULL = -11,					// destination would go above their limit
+    DIRECT_DEBIT_NO_ISSUER = -12					// missing issuer on asset
+};
+
+union DirectDebitResult switch (DirectDebitResultCode code)
+{
+case DIRECT_DEBIT_SUCCESS:
+    void;
+default:
+    void;
+};
+
 /* High level Operation Result */
 
 enum OperationResultCode
@@ -683,6 +771,10 @@ case opINNER:
         InflationResult inflationResult;
     case MANAGE_DATA:
         ManageDataResult manageDataResult;
+	case MANAGE_DEBIT:
+		ManageDebitResult manageDebitResult;
+	case DIRECT_DEBIT:
+		DirectDebitResult directDebitResult;
     }
     tr;
 default:

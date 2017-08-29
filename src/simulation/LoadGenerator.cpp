@@ -807,6 +807,7 @@ LoadGenerator::TxMetrics::TxMetrics(medida::MetricsRegistry& m)
     : mAccountCreated(m.NewMeter({"loadgen", "account", "created"}, "account"))
     , mTrustlineCreated(
           m.NewMeter({"loadgen", "trustline", "created"}, "trustline"))
+	, mDebitCreated(m.NewMeter({"loadgen", "debit", "created"}, "debit"))
     , mOfferCreated(m.NewMeter({"loadgen", "offer", "created"}, "offer"))
     , mPayment(m.NewMeter({"loadgen", "payment", "any"}, "payment"))
     , mNativePayment(m.NewMeter({"loadgen", "payment", "native"}, "payment"))
@@ -837,6 +838,7 @@ LoadGenerator::TxMetrics::report()
                            << mGateways.count() << " gw, "
                            << mMarketMakers.count() << " mm), "
                            << mTrustlineCreated.count() << " tl, "
+						   << mDebitCreated.count() << " deb, "
                            << mOfferCreated.count() << " of, "
                            << mPayment.count() << " pa ("
                            << mNativePayment.count() << " na, "
@@ -851,6 +853,7 @@ LoadGenerator::TxMetrics::report()
                            << mTxnBytes.one_minute_rate() << " by, "
                            << mAccountCreated.one_minute_rate() << " ac, "
                            << mTrustlineCreated.one_minute_rate() << " tl, "
+						   << mDebitCreated.one_minute_rate() << " deb, "
                            << mOfferCreated.one_minute_rate() << " of, "
                            << mPayment.one_minute_rate() << " pa ("
                            << mNativePayment.one_minute_rate() << " na, "

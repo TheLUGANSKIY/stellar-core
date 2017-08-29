@@ -17,6 +17,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{916B91AB-A300-422C-B9C2-D683924DC109}</ProjectGuid>
     <RootNamespace>stellar-core</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -295,6 +296,7 @@
     <ClCompile Include="..\..\src\invariant\TotalCoinsEqualsBalancesPlusFeePool.cpp" />
     <ClCompile Include="..\..\src\ledger\AccountFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\DataFrame.cpp" />
+    <ClCompile Include="..\..\src\ledger\DebitFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerDelta.cpp" />
     <ClCompile Include="..\..\src\ledger\EntryFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerDeltaTests.cpp" />
@@ -410,8 +412,12 @@
     <ClCompile Include="..\..\src\transactions\ChangeTrustTests.cpp" />
     <ClCompile Include="..\..\src\transactions\CreateAccountOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\CreatePassiveOfferOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\DirectDebitOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\DirectDebitTests.cpp" />
     <ClCompile Include="..\..\src\transactions\ManageDataOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ManageDataTests.cpp" />
+    <ClCompile Include="..\..\src\transactions\ManageDebitOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\ManageDebitTests.cpp" />
     <ClCompile Include="..\..\src\transactions\ManageOfferOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\InflationOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\InflationTests.cpp" />
@@ -529,6 +535,7 @@
     <ClInclude Include="..\..\src\invariant\TotalCoinsEqualsBalancesPlusFeePool.h" />
     <ClInclude Include="..\..\src\ledger\DataFrame.h" />
     <ClInclude Include="..\..\src\history\StateSnapshot.h" />
+    <ClInclude Include="..\..\src\ledger\DebitFrame.h" />
     <ClInclude Include="..\..\src\ledger\LedgerTestUtils.h" />
     <ClInclude Include="..\..\src\ledger\SyncingLedgerChain.h" />
     <ClInclude Include="..\..\src\main\ExternalQueue.h" />
@@ -609,7 +616,9 @@
     <ClInclude Include="..\..\src\transactions\AllowTrustOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\CreateAccountOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\CreatePassiveOfferOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\DirectDebitOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ManageDataOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\ManageDebitOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ManageOfferOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\InflationOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\MergeOpFrame.h" />

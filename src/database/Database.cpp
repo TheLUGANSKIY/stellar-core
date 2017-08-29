@@ -18,6 +18,7 @@
 #include "herder/Herder.h"
 #include "ledger/AccountFrame.h"
 #include "ledger/DataFrame.h"
+#include "ledger/DebitFrame.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
@@ -292,6 +293,7 @@ Database::initialize()
     AccountFrame::dropAll(*this);
     OfferFrame::dropAll(*this);
     TrustFrame::dropAll(*this);
+	DebitFrame::dropAll(*this);
     OverlayManager::dropAll(*this);
     PersistentState::dropAll(*this);
     ExternalQueue::dropAll(*this);

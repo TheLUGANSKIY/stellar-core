@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SecretKey.h"
+#include "ledger/DebitFrame.h"
 #include "ledger/OfferFrame.h"
 #include "transactions/TransactionFrame.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -47,6 +48,10 @@ class TestAccount
                     Signer* signer, std::string* homeDomain);
 
     void manageData(std::string const& name, DataValue* value);
+
+	void manageDebit(PublicKey const& debitor, Asset const& asset, bool toDelete);
+
+	void directDebit(PublicKey const& owner, PublicKey const& dest, Asset const& asset, int64_t amount);
 
     OfferFrame::pointer loadOffer(uint64_t offerID) const;
     bool hasOffer(uint64_t offerID) const;
